@@ -16,4 +16,5 @@ redis>=5.0.0
 celery>=5.3.6
 tenacity>=8.2.3
 aiosqlite>=0.20.0
+json-repair>=0.18.0
 

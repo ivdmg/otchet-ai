@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
 
+    # LLM Settings
+    LLM_PROVIDER: str = "deepseek"
+    LLM_API_KEY: str = "mock-key"
+    LLM_MODEL: str = "deepseek-chat"
+    LLM_BASE_URL: str = ""
+    LLM_TEMPERATURE: float = 0.2
+    LLM_MAX_TOKENS: int = 4096
+    LLM_TIMEOUT: float = 60.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

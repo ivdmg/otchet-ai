@@ -54,14 +54,14 @@
 ---
 
 ## Фаза 5: LLM Pipeline в FastAPI (Prompt Orchestration)
-- [ ] **Task 5.1:** Настройка абстракции LLM Провайдера (`httpx` / `openai` SDK).
-- [ ] **Task 5.2:** Реализация Exponential Backoff & Retry Policy через `tenacity` (до 5 попыток при 429/503).
-- [ ] **Task 5.3:** Реализация сервиса Outline Generator (Промпт 1 $\to$ JSON AST дерева).
-- [ ] **Task 5.4:** Реализация сервиса Introduction Generator (Промпт 2 $\to$ 6 обязательных блоков).
-- [ ] **Task 5.5:** Реализация сервиса Body Chapter Generator (Промпт 3 $\to$ Текст + Таблицы + Списки + Сноски).
-- [ ] **Task 5.6:** Реализация сервиса Conclusion Generator (Промпт 4 $\to$ Выводы по задачам).
-- [ ] **Task 5.7:** Реализация сервиса Bibliography Generator (Промпт 5 $\to$ ГОСТ Р 7.0.100-2018).
-- [ ] **Task 5.8:** Интеграция Sanitizer / Repair JSON модуля для автоматического исправления кривого JSON от LLM.
+- [x] **Task 5.1:** Настройка абстракции LLM Провайдера (`httpx` / `openai` SDK).
+- [x] **Task 5.2:** Реализация Exponential Backoff & Retry Policy через `tenacity` (до 5 попыток при 429/503).
+- [x] **Task 5.3:** Реализация сервиса Outline Generator (Промпт 1 $\to$ JSON AST дерева).
+- [x] **Task 5.4:** Реализация сервиса Introduction Generator (Промпт 2 $\to$ 6 обязательных блоков).
+- [x] **Task 5.5:** Реализация сервиса Body Chapter Generator (Промпт 3 $\to$ Текст + Таблицы + Списки + Сноски).
+- [x] **Task 5.6:** Реализация сервиса Conclusion Generator (Промпт 4 $\to$ Выводы по задачам).
+- [x] **Task 5.7:** Реализация сервиса Bibliography Generator (Промпт 5 $\to$ ГОСТ Р 7.0.100-2018).
+- [x] **Task 5.8:** Интеграция Sanitizer / Repair JSON модуля для автоматического исправления кривого JSON от LLM.
 
 ---
 
