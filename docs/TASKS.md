@@ -28,13 +28,14 @@
 ---
 
 ## Фаза 3: Биллинг, Эквайринг и Авторизация FastAPI (Auth & Payments)
-- [ ] **Task 3.1:** Настройка JWT авторизации в FastAPI (`python-jose`, хеширование `passlib`/`bcrypt`).
-- [ ] **Task 3.2:** Реализация эндпоинтов авторизации (`POST /api/v1/auth/register`, `POST /api/v1/auth/login`).
-- [ ] **Task 3.3:** Интеграция SDK эквайринга ЮKassa / CloudPayments в FastAPI.
-- [ ] **Task 3.4:** Эндпоинт создания платежной сессии (`POST /api/v1/payments/create`).
-- [ ] **Task 3.5:** Вебхук обработчик подписанных уведомлений эквайринга с валидацией HMAC (`POST /api/v1/payments/webhook`).
-- [ ] **Task 3.6:** Сервисный слой списания/пополнения кредитов с `SELECT FOR UPDATE` блокировкой.
-- [ ] **Task 3.7:** Интеграционное pytest-тестирование эндпоинтов оплаты.
+- [x] **Task 3.1:** Настройка JWT авторизации в FastAPI (`python-jose`, хеширование `passlib`/`bcrypt`).
+- [x] **Task 3.2:** Реализация эндпоинтов авторизации (`POST /api/v1/auth/register`, `POST /api/v1/auth/login`).
+- [x] **Task 3.3:** Интеграция SDK эквайринга ЮKassa / CloudPayments в FastAPI.
+- [x] **Task 3.4:** Эндпоинт создания платежной сессии (`POST /api/v1/payments/create`).
+- [x] **Task 3.5:** Вебхук обработчик подписанных уведомлений эквайринга с валидацией HMAC (`POST /api/v1/payments/webhook`).
+- [x] **Task 3.6:** Сервисный слой списания/пополнения кредитов с `SELECT FOR UPDATE` блокировкой.
+- [x] **Task 3.7:** Интеграционное pytest-тестирование эндпоинтов оплаты.
+
 
 ---
 

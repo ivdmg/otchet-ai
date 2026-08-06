@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, TYPE_CHECKING
-from sqlalchemy import String, Integer, Text, Numeric, DateTime, ForeignKey
+from sqlalchemy import String, Integer, Text, Numeric, DateTime, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,7 +33,7 @@ class PromptHistory(Base):
     prompt_name: Mapped[str] = mapped_column(String(100), nullable=False)
     prompt_used: Mapped[str] = mapped_column(Text, nullable=False)
     response_json: Mapped[Dict[str, Any]] = mapped_column(
-        JSONB, default=dict, nullable=False
+        JSON().with_variant(JSONB, "postgresql"), default=dict, nullable=False
     )
     tokens_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cost_rub: Mapped[float] = mapped_column(

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
-from sqlalchemy import String, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import String, DateTime, ForeignKey, JSON, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,8 +38,9 @@ class Document(Base):
         SQLEnum(DocStatus), default=DocStatus.DRAFT, nullable=False, index=True
     )
     ast_graph_json: Mapped[Dict[str, Any]] = mapped_column(
-        JSONB, default=dict, nullable=False
+        JSON().with_variant(JSONB, "postgresql"), default=dict, nullable=False
     )
+
     file_s3_url: Mapped[Optional[str]] = mapped_column(
         String(1000), nullable=True
     )
