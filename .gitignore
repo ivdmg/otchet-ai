@@ -1,12 +1,48 @@
+# Environment files
 .env
 .env.*
 !.env.example
+
+# Node / Frontend dependencies & build artifacts
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+.cache/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
 venv/
 .venv/
-dist/
-build/
+env/
+ENV/
+
+# Celery & logs
+*.log
+celerybeat-schedule
+celerybeat.pid
+
+# Uploaded & generated user files
+uploads/*
+!uploads/.gitkeep
 *.docx
 !samples/**/*.docx
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
