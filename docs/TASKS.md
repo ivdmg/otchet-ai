@@ -66,14 +66,14 @@
 ---
 
 ## Фаза 6: FastAPI API & Celery Фоновые Задачи (Backend Layer)
-- [ ] **Task 6.1:** Настройка Celery + Redis воркер-задач и брокера.
-- [ ] **Task 6.2:** Реализация сохранений чекпоинтов AST в Redis (`doc:{doc_id}:checkpoint`).
-- [ ] **Task 6.3:** Celery Task пошаговой генерации документа с публикацией прогресса через Redis Pub/Sub / WebSocket.
-- [ ] **Task 6.4:** WebSocket / SSE эндпоинт в FastAPI для стриминга статуса генерации (`/api/v1/ws/generation/{doc_id}`).
-- [ ] **Task 6.5:** Эндпоинт точечной перегенерации узла (`POST /api/v1/documents/{doc_id}/spot-regenerate`).
-- [ ] **Task 6.6:** Эндпоинт возобновления упавшей генерации с последнего чекпоинта (`POST /api/v1/documents/{doc_id}/resume`).
-- [ ] **Task 6.7:** Эндпоинт компиляции и скачивания готового `.docx` из S3 / Локального хранилища.
-- [ ] **Task 6.8:** Интеграционные pytest-тесты для FastAPI API (`TestClient` / `httpx`).
+- [x] **Task 6.1:** Настройка Celery + Redis воркер-задач и брокера.
+- [x] **Task 6.2:** Реализация сохранений чекпоинтов AST в Redis (`doc:{doc_id}:checkpoint`).
+- [x] **Task 6.3:** Celery Task пошаговой генерации документа с публикацией прогресса через Redis Pub/Sub / WebSocket.
+- [x] **Task 6.4:** WebSocket / SSE эндпоинт в FastAPI для стриминга статуса генерации (`/api/v1/ws/generation/{doc_id}`).
+- [x] **Task 6.5:** Эндпоинт точечной перегенерации узла (`POST /api/v1/documents/{doc_id}/spot-regenerate`).
+- [x] **Task 6.6:** Эндпоинт возобновления упавшей генерации с последнего чекпоинта (`POST /api/v1/documents/{doc_id}/resume`).
+- [x] **Task 6.7:** Эндпоинт компиляции и скачивания готового `.docx` из S3 / Локального хранилища.
+- [x] **Task 6.8:** Интеграционные pytest-тесты для FastAPI API (`TestClient` / `httpx`).
 
 ---
 

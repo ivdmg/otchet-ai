@@ -24,10 +24,12 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "aigostdoc"
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/aigostdoc"
 
-    # Redis
+    # Redis & Celery
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_URL: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
     # JWT Authentication
     SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
