@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   OutlineAST, 
   OutlineChapterItem, 
@@ -9,6 +10,7 @@ import {
   Trash2, 
   ChevronUp, 
   ChevronDown, 
+  ChevronRight,
   Edit3, 
   Check, 
   Sparkles, 
@@ -17,8 +19,12 @@ import {
   FolderTree,
   ArrowRight,
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  GripVertical,
+  Layers,
+  CheckCircle2
 } from "lucide-react";
+import { GlassCard } from "../ui/GlassCard";
 
 interface AstTreeEditorProps {
   initialOutline?: OutlineAST;
@@ -67,9 +73,15 @@ export const AstTreeEditor: React.FC<AstTreeEditorProps> = ({
       : defaultInitialChapters
   );
 
+  const [collapsedChapters, setCollapsedChapters] = useState<Record<number, boolean>>({});
   const [editingChapterIdx, setEditingChapterIdx] = useState<number | null>(null);
   const [editingSectionIdx, setEditingSectionIdx] = useState<{ cIdx: number; sIdx: number } | null>(null);
   const [tempText, setTempText] = useState("");
+
+  // Toggle collapse for chapter subtree
+  const toggleCollapse = (cIdx: number) => {
+    setCollapsedChapters((prev) => ({ ...prev, [cIdx]: !prev[cIdx] }));
+  };
 
   // Расчет приблизительного количества страниц по ГОСТу
   const calculateTotalPages = () => {
@@ -79,13 +91,14 @@ export const AstTreeEditor: React.FC<AstTreeEditorProps> = ({
         totalParagraphs += sec.target_paragraphs;
       });
     });
-    // В среднем 1 страница = ~2.5-3 параграфа по ГОСТу + Введение (3) + Заключение (3) + Источники (2)
+    // В среднем 1 страница = ~2.2 параграфа по ГОСТу + Введение (3) + Заключение (3) + Источники (2)
     const pageEst = Math.round(totalParagraphs / 2.2) + 8;
     return pageEst;
   };
 
   // Редактирование наименования главы
-  const startEditChapter = (cIdx: number) => {
+  const startEditChapter = (cIdx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditingChapterIdx(cIdx);
     setTempText(chapters[cIdx].title);
   };
@@ -128,7 +141,8 @@ export const AstTreeEditor: React.FC<AstTreeEditorProps> = ({
   };
 
   // Удаление главы
-  const removeChapter = (cIdx: number) => {
+  const removeChapter = (cIdx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (chapters.length <= 1) return;
     setChapters(chapters.filter((_, idx) => idx !== cIdx));
   };
@@ -153,8 +167,9 @@ export const AstTreeEditor: React.FC<AstTreeEditorProps> = ({
     setChapters(updated);
   };
 
-  // Перемещение глав вверх/вниз
-  const moveChapter = (cIdx: number, direction: "up" | "down") => {
+  // Перемещение глав вверх/вниз (с анимированной перекомпоновкой)
+  const moveChapter = (cIdx: number, direction: "up" | "down", e: React.MouseEvent) => {
+    e.stopPropagation();
     const targetIdx = direction === "up" ? cIdx - 1 : cIdx + 1;
     if (targetIdx < 0 || targetIdx >= chapters.length) return;
     const updated = [...chapters];
@@ -199,14 +214,15 @@ export const AstTreeEditor: React.FC<AstTreeEditorProps> = ({
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
       {/* Header Bar с информацией о теме и прогнозом объема */}
-      <div className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-800">
+      <div className="glass-panel p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-indigo-500/20 shadow-glass">
         <div>
-          <div className="flex items-center space-x-2 text-xs text-blue-400 font-semibold mb-1 uppercase tracking-wider">
-            <FolderTree className="w-4 h-4" />
+          <div className="flex items-center space-x-2 text-xs text-indigo-400 font-semibold mb-1 uppercase tracking-wider">
+            <FolderTree className="w-4 h-4 text-indigo-400" />
             <span>Интерактивный AST Дерево-Редактор</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block ml-1" />
           </div>
-          <h2 className="text-xl font-bold text-white max-w-2xl line-clamp-1">{docTitle || "Без названия"}</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <h2 className="text-xl font-bold text-white dark:text-white light:text-slate-900 max-w-2xl line-clamp-1">{docTitle || "Без названия"}</h2>
+          <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600 mt-0.5">
             Настройте структуру глав и параграфов. Все изменения автоматически применятся к генерации ИИ.
           </p>
         </div>
@@ -218,261 +234,334 @@ export const AstTreeEditor: React.FC<AstTreeEditorProps> = ({
               <span>~{calculateTotalPages()} стр.</span>
             </p>
           </div>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             type="button"
             onClick={handleRegeneratePreset}
             title="Восстановить пресет ГОСТ"
-            className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700"
+            className="p-2.5 rounded-xl bg-slate-900/80 dark:bg-slate-900/80 light:bg-slate-200 hover:bg-slate-800 text-slate-300 dark:text-slate-300 light:text-slate-700 transition-colors border border-slate-700/50 cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* Обязательный блок: ВВЕДЕНИЕ */}
-      <div className="glass-card p-4 rounded-xl border border-slate-800/80 bg-slate-900/40 flex items-center justify-between opacity-80">
+      <motion.div
+        whileHover={{ scale: 1.005 }}
+        className="glass-card p-4 rounded-2xl border border-indigo-500/20 bg-indigo-950/20 flex items-center justify-between opacity-90 shadow-sm"
+      >
         <div className="flex items-center space-x-3">
-          <span className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-mono font-bold flex items-center justify-center">
+          <span className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 text-xs font-mono font-bold flex items-center justify-center">
             0.1
           </span>
           <div>
-            <h4 className="text-sm font-semibold text-white">ВВЕДЕНИЕ (Обязательный раздел ГОСТ 7.32)</h4>
-            <p className="text-xs text-slate-400">
+            <h4 className="text-sm font-semibold text-white dark:text-white light:text-slate-900 flex items-center space-x-2">
+              <span>ВВЕДЕНИЕ (Обязательный раздел ГОСТ 7.32)</span>
+              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+            </h4>
+            <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600">
               Включает: Актуальность, Объект, Предмет, Цель, Задачи, Методы исследования
             </p>
           </div>
         </div>
-        <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono">
+        <span className="text-xs px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-mono">
           6 Блоков
         </span>
-      </div>
+      </motion.div>
 
-      {/* Дерево Глав и Параграфов */}
+      {/* Дерево Глав и Параграфов с Framer Motion Layout Reordering */}
       <div className="space-y-4">
-        {chapters.map((chapter, cIdx) => (
-          <div
-            key={cIdx}
-            className="glass-card rounded-2xl p-5 border border-slate-800 space-y-4 relative group"
-          >
-            {/* Заголовок Главы */}
-            <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-3 flex-1">
-                <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-sm flex items-center justify-center shadow-md">
-                  {cIdx + 1}
-                </span>
+        <AnimatePresence>
+          {chapters.map((chapter, cIdx) => {
+            const isCollapsed = !!collapsedChapters[cIdx];
 
-                {editingChapterIdx === cIdx ? (
-                  <div className="flex items-center space-x-2 flex-1">
-                    <input
-                      type="text"
-                      value={tempText}
-                      onChange={(e) => setTempText(e.target.value)}
-                      className="flex-1 px-3 py-1.5 bg-slate-950 border border-blue-500 rounded-lg text-white text-sm focus:outline-none"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => saveEditChapter(cIdx)}
-                      className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+            return (
+              <motion.div
+                key={`chapter-${cIdx}`}
+                layout
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="glass-card rounded-3xl p-5 border border-slate-800/80 dark:border-slate-800/80 light:border-slate-200 space-y-4 relative group"
+              >
+                {/* Заголовок Главы */}
+                <div 
+                  onClick={() => toggleCollapse(cIdx)}
+                  className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800/60 dark:border-slate-800/60 light:border-slate-200 cursor-pointer select-none"
+                >
+                  <div className="flex items-center space-x-3 flex-1">
+                    <motion.div
+                      animate={{ rotate: isCollapsed ? 0 : 90 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-slate-400 hover:text-indigo-400 transition-colors"
                     >
-                      <Check className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2 flex-1">
-                    <h3 className="text-base font-bold text-white tracking-wide">
-                      ГЛАВА {cIdx + 1}. {chapter.title}
-                    </h3>
-                    <button
-                      onClick={() => startEditChapter(cIdx)}
-                      className="p-1 text-slate-500 hover:text-blue-400 transition-colors"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
+                      <ChevronRight className="w-5 h-5" />
+                    </motion.div>
 
-              {/* Управление главой */}
-              <div className="flex items-center space-x-1">
-                <button
-                  disabled={cIdx === 0}
-                  onClick={() => moveChapter(cIdx, "up")}
-                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 disabled:opacity-30 transition-colors"
-                >
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-                <button
-                  disabled={cIdx === chapters.length - 1}
-                  onClick={() => moveChapter(cIdx, "down")}
-                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 disabled:opacity-30 transition-colors"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => removeChapter(cIdx)}
-                  disabled={chapters.length <= 1}
-                  className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 disabled:opacity-30 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+                    <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-bold text-sm flex items-center justify-center shadow-md shadow-indigo-600/30">
+                      {cIdx + 1}
+                    </span>
 
-            {/* Список параграфов внутри главы */}
-            <div className="pl-4 sm:pl-8 space-y-2">
-              {chapter.sections.map((sec, sIdx) => {
-                const isEditing =
-                  editingSectionIdx?.cIdx === cIdx && editingSectionIdx?.sIdx === sIdx;
-
-                return (
-                  <div
-                    key={sIdx}
-                    className="p-3 rounded-xl bg-slate-900/70 border border-slate-800/80 hover:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all"
-                  >
-                    <div className="flex items-center space-x-3 flex-1 w-full">
-                      <span className="text-xs font-mono font-semibold px-2 py-1 rounded bg-slate-800 text-blue-400">
-                        {cIdx + 1}.{sIdx + 1}
-                      </span>
-
-                      {isEditing ? (
-                        <div className="flex items-center space-x-2 flex-1">
-                          <input
-                            type="text"
-                            value={tempText}
-                            onChange={(e) => setTempText(e.target.value)}
-                            className="flex-1 px-3 py-1 bg-slate-950 border border-blue-500 rounded-lg text-white text-xs focus:outline-none"
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => saveEditSection(cIdx, sIdx)}
-                            className="p-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2 flex-1">
-                          <span className="text-sm font-medium text-slate-200">{sec.title}</span>
-                          <button
-                            onClick={() => startEditSection(cIdx, sIdx)}
-                            className="p-1 text-slate-500 hover:text-blue-400 transition-colors"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Параметры секции (Таблица, Объем, Сортировка) */}
-                    <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-800">
-                      {/* Чекбокс включения таблицы */}
-                      <button
-                        type="button"
-                        onClick={() => toggleTable(cIdx, sIdx)}
-                        className={`text-xs px-2.5 py-1 rounded-lg border flex items-center space-x-1.5 transition-all ${
-                          sec.include_table
-                            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                            : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:bg-slate-800"
-                        }`}
-                      >
-                        <TableIcon className="w-3.5 h-3.5" />
-                        <span>Таблица ГОСТ</span>
-                      </button>
-
-                      {/* Управление сортировкой и удалением */}
-                      <div className="flex items-center space-x-1">
+                    {editingChapterIdx === cIdx ? (
+                      <div className="flex items-center space-x-2 flex-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={tempText}
+                          onChange={(e) => setTempText(e.target.value)}
+                          className="flex-1 px-3 py-1.5 glass-input rounded-xl text-white text-sm focus:outline-none"
+                          autoFocus
+                        />
                         <button
-                          disabled={sIdx === 0}
-                          onClick={() => moveSection(cIdx, sIdx, "up")}
-                          className="p-1 rounded hover:bg-slate-800 text-slate-500 disabled:opacity-20"
+                          onClick={() => saveEditChapter(cIdx)}
+                          className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors cursor-pointer"
                         >
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          disabled={sIdx === chapter.sections.length - 1}
-                          onClick={() => moveSection(cIdx, sIdx, "down")}
-                          className="p-1 rounded hover:bg-slate-800 text-slate-500 disabled:opacity-20"
-                        >
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => removeSection(cIdx, sIdx)}
-                          disabled={chapter.sections.length <= 1}
-                          className="p-1 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 disabled:opacity-20"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Check className="w-4 h-4" />
                         </button>
                       </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 flex-1">
+                        <h3 className="text-base font-bold text-white dark:text-white light:text-slate-900 tracking-wide">
+                          ГЛАВА {cIdx + 1}. {chapter.title}
+                        </h3>
+                        <button
+                          onClick={(e) => startEditChapter(cIdx, e)}
+                          className="p-1 text-slate-500 hover:text-indigo-400 transition-colors cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Управление главой & Пульсирующий AI Индикатор */}
+                  <div className="flex items-center space-x-2">
+                    <div className="hidden sm:flex items-center space-x-1 px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 text-xs border border-indigo-500/20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                      <span>{chapter.sections.length} подразд.</span>
+                    </div>
+
+                    <div className="flex items-center space-x-1">
+                      <button
+                        disabled={cIdx === 0}
+                        onClick={(e) => moveChapter(cIdx, "up", e)}
+                        className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 disabled:opacity-20 transition-colors cursor-pointer"
+                        title="Переместить вверх"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        disabled={cIdx === chapters.length - 1}
+                        onClick={(e) => moveChapter(cIdx, "down", e)}
+                        className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 disabled:opacity-20 transition-colors cursor-pointer"
+                        title="Переместить вниз"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => removeChapter(cIdx, e)}
+                        disabled={chapters.length <= 1}
+                        className="p-1.5 rounded-xl hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 disabled:opacity-20 transition-colors cursor-pointer"
+                        title="Удалить главу"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                );
-              })}
+                </div>
 
-              {/* Кнопка добавления параграфа */}
-              <button
-                type="button"
-                onClick={() => addSection(cIdx)}
-                className="w-full py-2.5 border border-dashed border-slate-800 rounded-xl text-xs font-semibold text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all flex items-center justify-center space-x-2"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Добавить параграф в Главу {cIdx + 1}</span>
-              </button>
-            </div>
-          </div>
-        ))}
+                {/* Список параграфов внутри главы с анимацией сворачивания */}
+                <AnimatePresence initial={false}>
+                  {!isCollapsed && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                      className="overflow-hidden pl-2 sm:pl-6 space-y-2.5 pt-1"
+                    >
+                      <AnimatePresence>
+                        {chapter.sections.map((sec, sIdx) => {
+                          const isEditing =
+                            editingSectionIdx?.cIdx === cIdx && editingSectionIdx?.sIdx === sIdx;
+
+                          return (
+                            <motion.div
+                              key={`sec-${cIdx}-${sIdx}`}
+                              layout
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              whileHover={{ scale: 1.008 }}
+                              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                              className="p-3.5 rounded-2xl bg-slate-900/60 dark:bg-slate-900/60 light:bg-slate-100 border border-slate-800/80 dark:border-slate-800/80 light:border-slate-300 hover:border-indigo-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all"
+                            >
+                              <div className="flex items-center space-x-3 flex-1 w-full">
+                                <GripVertical className="w-4 h-4 text-slate-600 hover:text-slate-400 cursor-grab shrink-0 hidden sm:block" />
+
+                                <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                                  {cIdx + 1}.{sIdx + 1}
+                                </span>
+
+                                {isEditing ? (
+                                  <div className="flex items-center space-x-2 flex-1">
+                                    <input
+                                      type="text"
+                                      value={tempText}
+                                      onChange={(e) => setTempText(e.target.value)}
+                                      className="flex-1 px-3 py-1 glass-input rounded-xl text-white text-xs focus:outline-none"
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => saveEditSection(cIdx, sIdx)}
+                                      className="p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors cursor-pointer"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center space-x-2 flex-1">
+                                    <span className="text-sm font-medium text-slate-200 dark:text-slate-200 light:text-slate-800">
+                                      {sec.title}
+                                    </span>
+                                    <button
+                                      onClick={() => startEditSection(cIdx, sIdx)}
+                                      className="p-1 text-slate-500 hover:text-indigo-400 transition-colors cursor-pointer"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Параметры секции (Таблица, Объем, Сортировка) */}
+                              <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-800">
+                                {/* Чекбокс включения таблицы */}
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  type="button"
+                                  onClick={() => toggleTable(cIdx, sIdx)}
+                                  className={`text-xs px-3 py-1.5 rounded-xl border flex items-center space-x-1.5 transition-all cursor-pointer ${
+                                    sec.include_table
+                                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-glow-emerald"
+                                      : "bg-slate-800/60 dark:bg-slate-800/60 light:bg-slate-200 border-slate-700/60 text-slate-400 hover:bg-slate-800"
+                                  }`}
+                                >
+                                  <TableIcon className="w-3.5 h-3.5" />
+                                  <span>Таблица ГОСТ</span>
+                                  {sec.include_table && <CheckCircle2 className="w-3 h-3 text-emerald-400 ml-0.5" />}
+                                </motion.button>
+
+                                {/* Управление сортировкой и удалением */}
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    disabled={sIdx === 0}
+                                    onClick={() => moveSection(cIdx, sIdx, "up")}
+                                    className="p-1 rounded-lg hover:bg-slate-800 text-slate-500 disabled:opacity-20 cursor-pointer"
+                                  >
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    disabled={sIdx === chapter.sections.length - 1}
+                                    onClick={() => moveSection(cIdx, sIdx, "down")}
+                                    className="p-1 rounded-lg hover:bg-slate-800 text-slate-500 disabled:opacity-20 cursor-pointer"
+                                  >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => removeSection(cIdx, sIdx)}
+                                    disabled={chapter.sections.length <= 1}
+                                    className="p-1 rounded-lg hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 disabled:opacity-20 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </AnimatePresence>
+
+                      {/* Кнопка добавления параграфа */}
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        type="button"
+                        onClick={() => addSection(cIdx)}
+                        className="w-full py-2.5 border border-dashed border-slate-800 dark:border-slate-800 light:border-slate-300 rounded-2xl text-xs font-semibold text-slate-400 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Добавить параграф в Главу {cIdx + 1}</span>
+                      </motion.button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
 
       {/* Кнопка добавления новой главы */}
-      <button
+      <motion.button
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
         type="button"
         onClick={addChapter}
-        className="w-full py-3.5 border-2 border-dashed border-slate-800 rounded-2xl text-sm font-semibold text-slate-300 hover:text-white hover:border-blue-500 hover:bg-blue-500/10 transition-all flex items-center justify-center space-x-2 cursor-pointer"
+        className="w-full py-4 border-2 border-dashed border-slate-800 dark:border-slate-800 light:border-slate-300 rounded-3xl text-sm font-semibold text-slate-300 dark:text-slate-300 light:text-slate-700 hover:text-white hover:border-indigo-500 hover:bg-indigo-500/10 transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-sm"
       >
-        <Plus className="w-4 h-4 text-blue-400" />
+        <Plus className="w-4 h-4 text-indigo-400" />
         <span>+ Добавить новую главу</span>
-      </button>
+      </motion.button>
 
       {/* Обязательные разделы: Заключение и Список литературы */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="glass-card p-4 rounded-xl border border-slate-800/80 bg-slate-900/40 opacity-80 flex items-center space-x-3">
+        <GlassCard variant="indigo" interactive={false} className="p-4 rounded-2xl opacity-90 flex items-center space-x-3">
           <FileText className="w-5 h-5 text-amber-400" />
           <div>
-            <h4 className="text-sm font-semibold text-white">ЗАКЛЮЧЕНИЕ</h4>
-            <p className="text-xs text-slate-400">Выводы по поставленным во введении задачам</p>
+            <h4 className="text-sm font-semibold text-white dark:text-white light:text-slate-900">ЗАКЛЮЧЕНИЕ</h4>
+            <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600">Выводы по поставленным во введении задачам</p>
           </div>
-        </div>
+        </GlassCard>
 
-        <div className="glass-card p-4 rounded-xl border border-slate-800/80 bg-slate-900/40 opacity-80 flex items-center space-x-3">
+        <GlassCard variant="indigo" interactive={false} className="p-4 rounded-2xl opacity-90 flex items-center space-x-3">
           <FileText className="w-5 h-5 text-emerald-400" />
           <div>
-            <h4 className="text-sm font-semibold text-white">СПИСОК ИСТОЧНИКОВ</h4>
-            <p className="text-xs text-slate-400">Оформление по ГОСТ Р 7.0.100-2018</p>
+            <h4 className="text-sm font-semibold text-white dark:text-white light:text-slate-900">СПИСОК ИСТОЧНИКОВ</h4>
+            <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600">Оформление по ГОСТ Р 7.0.100-2018</p>
           </div>
-        </div>
+        </GlassCard>
       </div>
 
       {/* Кнопки Навигации Wizard */}
-      <div className="flex items-center justify-between pt-6 border-t border-slate-800">
+      <div className="flex items-center justify-between pt-6 border-t border-slate-800/80 dark:border-slate-800/80 light:border-slate-200">
         {onBack ? (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             type="button"
             onClick={onBack}
-            className="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-colors flex items-center space-x-2 cursor-pointer"
+            className="px-6 py-3 rounded-2xl bg-slate-900 dark:bg-slate-900 light:bg-slate-200 hover:bg-slate-800 text-slate-300 dark:text-slate-300 light:text-slate-700 font-semibold text-sm transition-colors flex items-center space-x-2 cursor-pointer border border-slate-800 dark:border-slate-800 light:border-slate-300"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Назад к Исходным данным</span>
-          </button>
+          </motion.button>
         ) : <div />}
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
           type="button"
           onClick={handleFinish}
-          className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-600/25 flex items-center space-x-2 cursor-pointer"
+          className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm transition-all shadow-xl shadow-indigo-600/30 flex items-center space-x-2 cursor-pointer glow-effect-indigo"
         >
           <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
           <span>Утвердить план и запустить ИИ-генератор (Шаг 3)</span>
           <ArrowRight className="w-4 h-4" />
-        </button>
+        </motion.button>
       </div>
     </div>
   );

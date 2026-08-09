@@ -12,6 +12,7 @@ build/
 **/build/
 *.tsbuildinfo
 .cache/
+.antigravity/
 
 # Python
 __pycache__/
