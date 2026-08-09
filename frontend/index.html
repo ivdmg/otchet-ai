@@ -3,14 +3,99 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI GostDoc — Генератор ГОСТ документов нового поколения</title>
-    <meta name="description" content="Автоматическая генерация курсовых, дипломов и рефератов по ГОСТу с ИИ." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>AI GostDoc — ИИ-Генератор курсовых и ВКР по ГОСТ 7.32-2017</title>
+    <meta name="title" content="AI GostDoc — ИИ-Генератор курсовых и ВКР по ГОСТ 7.32-2017" />
+    <meta name="description" content="Автоматическая генерация курсовых, ВКР и рефератов с безупречной версткой по ГОСТ 7.32-2017. Поля 30/10/20/20 мм, списки литературы ГОСТ 2018 и 85-98% оригинальности в «Антиплагиат.ВУЗ»." />
+    <meta name="keywords" content="ИИ генератор курсовых, ВКР по ГОСТу, реферат ИИ, ГОСТ 7.32-2017, Антиплагиат ВУЗ, генерация дипломной работы, автоверстка Word, список литературы по ГОСТ" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#070a12" />
+    <link rel="canonical" href="https://gostdoc.ai/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gostdoc.ai/" />
+    <meta property="og:title" content="AI GostDoc — ИИ-Генератор курсовых и ВКР по ГОСТ 7.32-2017" />
+    <meta property="og:description" content="Создавайте курсовые и ВКР за 3 минуты с гарантией верстки по ГОСТу и 90%+ проходом в Антиплагиат.ВУЗ." />
+    <meta property="og:image" content="https://gostdoc.ai/og-preview.png" />
+    <meta property="og:site_name" content="AI GostDoc" />
+    <meta property="og:locale" content="ru_RU" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://gostdoc.ai/" />
+    <meta property="twitter:title" content="AI GostDoc — ИИ-Генератор курсовых и ВКР по ГОСТ 7.32-2017" />
+    <meta property="twitter:description" content="Создавайте курсовые и ВКР за 3 минуты с гарантией верстки по ГОСТу и 90%+ проходом в Антиплагиат.ВУЗ." />
+    <meta property="twitter:image" content="https://gostdoc.ai/og-preview.png" />
+
+    <!-- Fonts & Preconnect for High Lighthouse Score -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD Microdata -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "AI GostDoc Engine",
+          "operatingSystem": "All",
+          "applicationCategory": "EducationalApplication",
+          "offers": {
+            "@type": "Offer",
+            "price": "199",
+            "priceCurrency": "RUB",
+            "availability": "https://schema.org/InStock"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.97",
+            "ratingCount": "3840",
+            "bestRating": "5",
+            "worstRating": "1"
+          },
+          "description": "Платформа автоматической генерации научных работ и нормоконтроля по ГОСТ 7.32-2017."
+        },
+        {
+          "@type": "WebSite",
+          "name": "AI GostDoc",
+          "url": "https://gostdoc.ai/",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://gostdoc.ai/?s={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Действительно ли верстка на 100% соответствует ГОСТ 7.32-2017?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Да. AI GostDoc использует AST-архитектуру для генерации чистового .DOCX с точным соблюдением полей 30/10/20/20 мм, шрифта Times New Roman 14pt и авто-сносок по ГОСТ 2018."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Какая оригинальность в «Антиплагиат.ВУЗ»?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Глубокая академическая модель обеспечивает от 85% до 98% оригинального текста без синонимайзеров и скрытых обходов."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
-  <body class="bg-background text-foreground antialiased min-h-screen selection:bg-blue-500 selection:text-white">
+  <body class="bg-background text-foreground antialiased min-h-screen selection:bg-indigo-600 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

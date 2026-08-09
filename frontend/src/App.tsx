@@ -6,12 +6,21 @@ import { UserDashboard } from "./components/dashboard/UserDashboard";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
 import { GlassCard } from "./components/ui/GlassCard";
 import { CreditBalanceAnimator } from "./components/ui/CreditBalanceAnimator";
+import { HeroSection } from "./components/landing/HeroSection";
+import { ComparisonSection } from "./components/landing/ComparisonSection";
+import { PricingCalculatorSection } from "./components/landing/PricingCalculatorSection";
+import { SocialProofSection } from "./components/landing/SocialProofSection";
+import { FaqSection } from "./components/landing/FaqSection";
+import { LivePurchaseToast } from "./components/landing/LivePurchaseToast";
+import { ConversionFooterBanner } from "./components/landing/ConversionFooterBanner";
+import { SeoHead } from "./components/landing/SeoHead";
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"landing" | "wizard" | "dashboard">("dashboard");
 
   return (
     <div className="min-h-screen bg-[#070a12] dark:bg-[#070a12] light:bg-slate-100 text-slate-100 dark:text-slate-100 light:text-slate-900 flex flex-col relative overflow-hidden transition-colors duration-300">
+      <SeoHead activeTab={activeTab} />
       {/* Background Deep Indigo glow effects */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] bg-indigo-600/20 dark:bg-indigo-600/20 light:bg-indigo-500/10 blur-[130px] pointer-events-none rounded-full" />
       <div className="absolute top-1/3 right-10 w-[450px] h-[450px] bg-violet-600/15 dark:bg-violet-600/15 light:bg-violet-500/10 blur-[110px] pointer-events-none rounded-full" />
@@ -93,65 +102,22 @@ export const App: React.FC = () => {
             <WizardContainer />
           </div>
         ) : (
-          <div className="py-12 flex flex-col justify-center items-center text-center">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-indigo-950/60 dark:bg-indigo-950/60 light:bg-indigo-100 border border-indigo-500/30 text-xs font-medium text-indigo-300 dark:text-indigo-300 light:text-indigo-800 mb-6 shadow-sm">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span>Премиальная генерация научных работ по ГОСТу с AST архитектурой</span>
-            </div>
-
-            <h1 className="text-4xl md:text-6xl font-extrabold text-white dark:text-white light:text-slate-900 tracking-tight mb-6 max-w-4xl leading-tight">
-              ИИ-Генератор документов с точным соблюдением <span className="gradient-heading">ГОСТ 7.32-2017</span>
-            </h1>
-
-            <p className="text-lg md:text-xl text-slate-400 dark:text-slate-400 light:text-slate-600 max-w-2xl mb-10 leading-relaxed">
-              Создавайте курсовые работы, ВКР и рефераты с идеально сверстанными полями, списком литературы, таблицами и формулами в формате DOCX.
-            </p>
-
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => setActiveTab("wizard")}
-              className="px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-base transition-all shadow-xl shadow-indigo-600/30 flex items-center space-x-3 cursor-pointer mb-16 glow-effect-indigo"
-            >
-              <span>Запустить генератор документов</span>
-              <ArrowRight className="w-5 h-5" />
-            </motion.button>
-
-            {/* Feature Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full text-left">
-              <GlassCard variant="indigo" glow interactive>
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4 text-indigo-400 dark:text-indigo-400 light:text-indigo-600">
-                  <Layers className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-semibold text-white dark:text-white light:text-slate-900 mb-2">AST Редактор Плана</h3>
-                <p className="text-sm text-slate-400 dark:text-slate-400 light:text-slate-600 leading-relaxed">
-                  Визуальное управление структурой документа через интерактивное дерево разделов и подразделов.
-                </p>
-              </GlassCard>
-
-              <GlassCard variant="indigo" glow interactive>
-                <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-4 text-violet-400 dark:text-violet-400 light:text-violet-600">
-                  <Zap className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-semibold text-white dark:text-white light:text-slate-900 mb-2">Spot Regeneration</h3>
-                <p className="text-sm text-slate-400 dark:text-slate-400 light:text-slate-600 leading-relaxed">
-                  Точечная перегенерация отдельных глав и параграфов без изменения остального текста.
-                </p>
-              </GlassCard>
-
-              <GlassCard variant="indigo" glow interactive>
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-4 text-emerald-400 dark:text-emerald-400 light:text-emerald-600">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-semibold text-white dark:text-white light:text-slate-900 mb-2">Web DOCX Viewer A4</h3>
-                <p className="text-sm text-slate-400 dark:text-slate-400 light:text-slate-600 leading-relaxed">
-                  Предпросмотр страниц с точной эмуляцией полей 30/10/20/20 мм прямо в вашем браузере.
-                </p>
-              </GlassCard>
-            </div>
+          <div className="space-y-12">
+            <HeroSection onStartClick={() => setActiveTab("wizard")} />
+            <ComparisonSection />
+            <PricingCalculatorSection 
+              onStartGenerator={() => setActiveTab("wizard")}
+              onSelectPlan={() => setActiveTab("dashboard")}
+            />
+            <SocialProofSection />
+            <FaqSection />
+            <ConversionFooterBanner onStartClick={() => setActiveTab("wizard")} />
           </div>
         )}
       </main>
+
+      {/* Live Sales & Generation Toast Notifications */}
+      <LivePurchaseToast />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 dark:border-slate-800/80 light:border-slate-200 px-6 py-6 text-center text-xs text-slate-500 dark:text-slate-500 light:text-slate-600">
