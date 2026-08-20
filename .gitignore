@@ -1,3 +1,14 @@
+# ==========================================
+# Git Ignore Configuration for AI GostDoc
+# ==========================================
+
+# Markdown & internal task/instruction files (prevent leak to repo)
+*.md
+**/*.md
+docs/*.md
+brain/
+instruction
+
 # Environment files
 .env
 .env.*
@@ -13,33 +24,49 @@ build/
 *.tsbuildinfo
 .cache/
 .antigravity/
+.gemini/
 
-# Python
+# Python virtual environments & bytecode
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.coverage
-htmlcov/
-.hypothesis/
+**/__pycache__/
+*.py[cod]
+*$py.class
 venv/
 .venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
-# Celery & logs
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+coverage.xml
+*.cover
+
+# Database & SQLite files
+*.db
+*.sqlite
+*.sqlite3
+test.db
+
+# Celery, Redis & logs
 *.log
 celerybeat-schedule
 celerybeat.pid
+*.pid
 
-# Uploaded & generated user files
+# Uploaded & generated user files (.docx, .pdf, temporary files)
 uploads/*
 !uploads/.gitkeep
 *.docx
 !samples/**/*.docx
+temp/
+tmp/
 
-# IDE & Editor files
+# IDE, OS & Editor files
 .vscode/
 .idea/
 *.swp
@@ -47,3 +74,4 @@ uploads/*
 *~
 .DS_Store
 Thumbs.db
+desktop.ini

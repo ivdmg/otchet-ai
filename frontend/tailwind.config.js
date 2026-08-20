@@ -13,6 +13,12 @@ export default {
         "2xl": "1400px",
       },
     },
+    fontFamily: {
+      sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+      mono: ["JetBrains Mono", "Geist Mono", "ui-monospace", "monospace"],
+      outfit: ["Outfit", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+      serif: ["PT Serif", "Times New Roman", "serif"],
+    },
     extend: {
       colors: {
         border: "hsl(var(--border))",
@@ -48,6 +54,13 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        dark: {
+          950: "#09090b",
+          900: "#0f0f11",
+          850: "#141417",
+          800: "#18181b",
+          700: "#27272a",
+        },
         indigo: {
           950: "#0b0f19",
           900: "#111827",
@@ -74,6 +87,8 @@ export default {
         }
       },
       boxShadow: {
+        "glow-silver": "0 0 25px -5px rgba(255, 255, 255, 0.15)",
+        "glow-cold": "0 0 20px -3px rgba(240, 246, 255, 0.2)",
         "glow-indigo": "0 0 25px -5px rgba(99, 102, 241, 0.4)",
         "glow-blue": "0 0 25px -5px rgba(59, 130, 246, 0.4)",
         "glow-violet": "0 0 25px -5px rgba(124, 58, 237, 0.4)",

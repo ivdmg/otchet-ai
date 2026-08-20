@@ -73,17 +73,36 @@
   }
   html {
     color-scheme: dark;
+    scroll-behavior: smooth;
   }
   html.light {
     color-scheme: light;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased selection:bg-indigo-600 selection:text-white transition-colors duration-300;
+    @apply bg-[#09090b] text-zinc-100 font-sans antialiased selection:bg-zinc-700 selection:text-white transition-colors duration-300;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
+  code, pre, kbd, samp {
+    font-family: 'JetBrains Mono', 'Geist Mono', monospace;
+  }
+}
+
+/* Minimalist Dark Theme Surfaces */
+.dark-surface {
+  background-color: #141417;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dark-surface-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark-surface-hover:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 30px -5px rgba(255, 255, 255, 0.08);
 }
 
 /* ==========================================================================
