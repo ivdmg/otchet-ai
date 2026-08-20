@@ -17,7 +17,6 @@ import {
   AlertCircle
 } from "lucide-react";
 import { WizardFormData, DocType } from "./types";
-import { GlassCard } from "../ui/GlassCard";
 
 interface Step1InitialDataProps {
   data: WizardFormData;
@@ -29,13 +28,13 @@ const docTypesConfig: { type: DocType; label: string; desc: string; icon: any; b
   {
     type: "coursework",
     label: "Курсовая работа",
-    desc: "20-35 страниц, 2-3 главы, практическая и теоретическая части",
+    desc: "25-40 страниц, 2-3 главы, практическая и теоретическая части",
     icon: GraduationCap,
     badge: "ГОСТ 7.32-2017",
   },
   {
     type: "abstract",
-    label: "Реферат",
+    label: "Реферат / Эссе",
     desc: "10-20 страниц, теоретический обзор с акцентом на источники",
     icon: BookOpen,
     badge: "Быстрый старт",
@@ -123,14 +122,12 @@ export const Step1InitialData: React.FC<Step1InitialDataProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 w-full max-w-4xl mx-auto">
+      
       {/* 1. Выбор типа работы */}
       <div className="space-y-3">
-        <label className="text-sm font-semibold text-slate-200 dark:text-slate-200 light:text-slate-800 flex items-center justify-between">
-          <span className="flex items-center space-x-2">
-            <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs flex items-center justify-center font-bold">1</span>
-            <span>Выберите тип академической работы</span>
-          </span>
-          <span className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600 font-normal">Стандарт ГОСТ 7.32-2017</span>
+        <label className="text-xs font-mono uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+          <span>1. Выберите тип работы:</span>
+          <span className="text-[11px] text-zinc-500 font-mono">Стандарт ГОСТ 7.32-2017</span>
         </label>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -138,88 +135,82 @@ export const Step1InitialData: React.FC<Step1InitialDataProps> = ({
             const Icon = item.icon;
             const isSelected = data.docType === item.type;
             return (
-              <motion.div
+              <div
                 key={item.type}
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
                 onClick={() => onChange({ docType: item.type })}
-                className={`cursor-pointer rounded-2xl p-5 border transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
+                className={`cursor-pointer rounded-2xl p-5 border transition-all duration-200 relative overflow-hidden flex flex-col justify-between ${
                   isSelected
-                    ? "bg-indigo-950/40 dark:bg-indigo-950/40 light:bg-indigo-50 border-indigo-500 shadow-glow-indigo ring-2 ring-indigo-500/50"
-                    : "glass-card hover:border-indigo-500/40"
+                    ? "bg-[#18181c] border-zinc-400 shadow-xl shadow-black/50 ring-1 ring-white/10"
+                    : "dark-surface dark-surface-hover hover:border-zinc-700"
                 }`}
               >
                 {isSelected && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="absolute top-3 right-3 text-indigo-400 dark:text-indigo-400 light:text-indigo-600"
-                  >
-                    <CheckCircle2 className="w-5 h-5" />
-                  </motion.div>
+                  <div className="absolute top-3.5 right-3.5 text-zinc-100">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
                 )}
                 <div>
-                  <div className="flex items-center space-x-3 mb-3">
+                  <div className="flex items-center space-x-2.5 mb-3">
                     <div
-                      className={`p-2.5 rounded-xl transition-colors ${
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
                         isSelected 
-                          ? "bg-gradient-to-tr from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/30" 
-                          : "bg-slate-800 dark:bg-slate-800 light:bg-slate-200 text-slate-400 dark:text-slate-400 light:text-slate-600"
+                          ? "bg-zinc-100 text-zinc-950 font-bold" 
+                          : "bg-zinc-900 border border-zinc-800 text-zinc-400"
                       }`}
                     >
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-4 h-4" />
                     </div>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800/80 dark:bg-slate-800/80 light:bg-slate-200 text-indigo-300 dark:text-indigo-300 light:text-indigo-700 font-mono border border-slate-700/50">
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono text-zinc-400 bg-zinc-900 border border-zinc-800">
                       {item.badge}
                     </span>
                   </div>
-                  <h3 className="font-semibold text-white dark:text-white light:text-slate-900 text-base mb-1">{item.label}</h3>
-                  <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600 leading-relaxed">{item.desc}</p>
+                  <h3 className="font-bold text-zinc-100 text-sm mb-1">{item.label}</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">{item.desc}</p>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>
       </div>
 
       {/* 2. Исходные данные работы */}
-      <GlassCard variant="indigo" glow={false} interactive={false} className="space-y-6">
-        <h2 className="text-lg font-semibold text-white dark:text-white light:text-slate-900 flex items-center space-x-2">
-          <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
-          <span>Тема и параметры документа</span>
-        </h2>
+      <div className="dark-surface rounded-2xl p-6 sm:p-7 border border-zinc-800 space-y-6 shadow-xl">
+        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+          <div className="text-xs font-mono uppercase tracking-wider text-zinc-400">
+            2. Тема и параметры документа
+          </div>
+          <span className="text-[11px] font-mono text-zinc-500">Автоструктура по ГОСТ</span>
+        </div>
 
         {/* Тема работы */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-300 dark:text-slate-300 light:text-slate-700 flex items-center justify-between">
+          <label className="text-xs font-medium text-zinc-300 flex items-center justify-between">
             <span>Тема работы *</span>
-            <span className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-500">Точное наименование темы</span>
+            <span className="text-[11px] text-zinc-500 font-mono">Точное наименование</span>
           </label>
           <textarea
             rows={2}
             value={data.title}
             onChange={(e) => onChange({ title: e.target.value })}
-            placeholder="Например: Разработка системы мониторинга серверных ресурсов на базе Python"
-            className="w-full px-4 py-3 glass-input rounded-xl text-white dark:text-white light:text-slate-900 placeholder-slate-500 focus:outline-none transition-all resize-none text-sm"
+            placeholder="Например: Разработка и исследование алгоритмов машинного обучения для задач классификации"
+            className="w-full px-4 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-all resize-none text-xs sm:text-sm font-sans"
           />
 
           {/* Быстрый выбор примеров */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <span className="text-xs text-slate-500 dark:text-slate-500 light:text-slate-600 flex items-center space-x-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-[11px] font-mono text-zinc-500 flex items-center space-x-1">
               <Info className="w-3 h-3" />
-              <span>Примеры:</span>
+              <span>Примеры тем:</span>
             </span>
             {sampleTopics.map((topic, idx) => (
-              <motion.button
+              <button
                 key={idx}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => onChange({ title: topic })}
-                className="text-xs px-2.5 py-1 rounded-lg bg-slate-900/80 dark:bg-slate-900/80 light:bg-slate-200 hover:bg-indigo-950/60 dark:hover:bg-indigo-950/60 light:hover:bg-indigo-100 text-slate-300 dark:text-slate-300 light:text-slate-700 transition-colors border border-slate-700/50 dark:border-slate-700/50 light:border-slate-300 text-left truncate max-w-xs cursor-pointer"
+                className="text-[11px] px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors border border-zinc-800 text-left truncate max-w-xs cursor-pointer font-sans"
               >
                 {topic}
-              </motion.button>
+              </button>
             ))}
           </div>
         </div>
@@ -227,91 +218,89 @@ export const Step1InitialData: React.FC<Step1InitialDataProps> = ({
         {/* Предмет и количество глав */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300 dark:text-slate-300 light:text-slate-700">Предмет / Дисциплина *</label>
+            <label className="text-xs font-medium text-zinc-300">Предмет / Дисциплина *</label>
             <input
               type="text"
               value={data.subject}
               onChange={(e) => onChange({ subject: e.target.value })}
               placeholder="Информационные технологии"
-              className="w-full px-4 py-2.5 glass-input rounded-xl text-white dark:text-white light:text-slate-900 placeholder-slate-500 text-sm"
+              className="w-full px-4 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 text-xs sm:text-sm"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300 dark:text-slate-300 light:text-slate-700">Количество глав основного текста</label>
+            <label className="text-xs font-medium text-zinc-300">Количество глав основного текста</label>
             <select
               value={data.chapterCount}
               onChange={(e) => onChange({ chapterCount: Number(e.target.value) })}
-              className="w-full px-4 py-2.5 glass-input rounded-xl text-white dark:text-white light:text-slate-900 text-sm cursor-pointer"
+              className="w-full px-4 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-zinc-100 text-xs sm:text-sm cursor-pointer focus:outline-none focus:border-zinc-500"
             >
-              <option value={2} className="bg-slate-900 text-white dark:bg-slate-900 dark:text-white light:bg-white light:text-slate-900">2 главы (Теория + Практика)</option>
-              <option value={3} className="bg-slate-900 text-white dark:bg-slate-900 dark:text-white light:bg-white light:text-slate-900">3 главы (Стандарт ГОСТ: Теория, Анализ, Проект)</option>
-              <option value={4} className="bg-slate-900 text-white dark:bg-slate-900 dark:text-white light:bg-white light:text-slate-900">4 главы (Глубокое исследование)</option>
+              <option value={2} className="bg-zinc-900 text-zinc-100">2 главы (Теория + Практика)</option>
+              <option value={3} className="bg-zinc-900 text-zinc-100">3 главы (Стандарт ГОСТ: Теория, Анализ, Проект)</option>
+              <option value={4} className="bg-zinc-900 text-zinc-100">4 главы (Глубокое исследование)</option>
             </select>
           </div>
         </div>
 
         {/* Дополнительные метаданные для титульного листа */}
-        <div className="pt-4 border-t border-slate-800/80 dark:border-slate-800/80 light:border-slate-200">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-400 light:text-slate-600 mb-4">
+        <div className="pt-4 border-t border-zinc-800/80 space-y-3">
+          <div className="text-xs font-mono uppercase tracking-wider text-zinc-500">
             Данные для титульного листа (опционально)
-          </h3>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
-              <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <User className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={data.authorName || ""}
                 onChange={(e) => onChange({ authorName: e.target.value })}
                 placeholder="ФИО Студента (Иванов И.И.)"
-                className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl text-white dark:text-white light:text-slate-900 placeholder-slate-500 text-sm"
+                className="w-full pl-10 pr-4 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 text-xs sm:text-sm"
               />
             </div>
 
             <div className="relative">
-              <Building2 className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Building2 className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={data.institution || ""}
                 onChange={(e) => onChange({ institution: e.target.value })}
                 placeholder="ВУЗ / Кафедра (МГТУ им. Баумана)"
-                className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl text-white dark:text-white light:text-slate-900 placeholder-slate-500 text-sm"
+                className="w-full pl-10 pr-4 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 text-xs sm:text-sm"
               />
             </div>
 
             <div className="relative">
-              <MapPin className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <MapPin className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={data.city || ""}
                 onChange={(e) => onChange({ city: e.target.value })}
                 placeholder="Город (Москва)"
-                className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl text-white dark:text-white light:text-slate-900 placeholder-slate-500 text-sm"
+                className="w-full pl-10 pr-4 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 text-xs sm:text-sm"
               />
             </div>
 
             <div className="relative">
-              <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Calendar className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
               <input
                 type="number"
                 value={data.year || new Date().getFullYear()}
                 onChange={(e) => onChange({ year: Number(e.target.value) })}
                 placeholder="Год (2026)"
-                className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl text-white dark:text-white light:text-slate-900 placeholder-slate-500 text-sm"
+                className="w-full pl-10 pr-4 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 text-xs sm:text-sm"
               />
             </div>
           </div>
         </div>
-      </GlassCard>
+
+      </div>
 
       {/* 3. Drag and Drop Загрузка Методички */}
       <div className="space-y-3">
-        <label className="text-sm font-semibold text-slate-200 dark:text-slate-200 light:text-slate-800 flex items-center justify-between">
-          <span className="flex items-center space-x-2">
-            <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs flex items-center justify-center font-bold">3</span>
-            <span>Загрузить методические указания / план (Опционально)</span>
-          </span>
-          <span className="text-xs text-indigo-400 dark:text-indigo-400 light:text-indigo-600 font-normal">ИИ адаптирует структуру под требования VUZ</span>
+        <label className="text-xs font-mono uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+          <span>3. Методические указания / план (Опционально)</span>
+          <span className="text-[11px] text-zinc-500 font-mono">PDF, DOCX, TXT</span>
         </label>
 
         <input
@@ -323,65 +312,59 @@ export const Step1InitialData: React.FC<Step1InitialDataProps> = ({
         />
 
         {!data.guideFile ? (
-          <motion.div
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
+          <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${
+            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
               isDragging
-                ? "border-indigo-500 bg-indigo-500/10 scale-[1.01] shadow-glow-indigo"
-                : "border-slate-800 dark:border-slate-800 light:border-slate-300 bg-slate-900/40 dark:bg-slate-900/40 light:bg-slate-200/50 hover:border-indigo-500/50 hover:bg-slate-900/70"
+                ? "border-zinc-400 bg-zinc-900/60 shadow-glow-silver"
+                : "border-zinc-800 bg-zinc-950/40 hover:border-zinc-600 hover:bg-zinc-900/40"
             }`}
           >
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 dark:text-indigo-400 light:text-indigo-600 flex items-center justify-center mx-auto mb-3 shadow-glass-sm">
-              <Upload className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center justify-center mx-auto mb-3">
+              <Upload className="w-5 h-5" />
             </div>
-            <p className="text-sm font-semibold text-white dark:text-white light:text-slate-900 mb-1">
-              Перетащите файл сюда или нажмите для выбора
+            <p className="text-xs sm:text-sm font-semibold text-zinc-200 mb-1">
+              Перетащите файл методички сюда или нажмите для выбора
             </p>
-            <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600">
-              Поддерживаются файлы методических указаний в формате PDF, DOCX или TXT (до 20 МБ)
+            <p className="text-[11px] text-zinc-500 font-mono">
+              ИИ автоматически извлечет требования к структуре и оформлению
             </p>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="glass-card p-4 rounded-2xl border border-indigo-500/40 bg-indigo-950/20 flex items-center justify-between shadow-glow-indigo"
-          >
+          <div className="dark-surface p-4 rounded-2xl border border-zinc-700 flex items-center justify-between shadow-md">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-                <FileText className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center justify-center">
+                <FileText className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-sm font-medium text-white dark:text-white light:text-slate-900">{data.guideFile.name}</p>
-                <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600">
-                  {(data.guideFile.size / (1024 * 1024)).toFixed(2)} МБ • Успешно прикреплен
+                <p className="text-xs font-semibold text-zinc-100">{data.guideFile.name}</p>
+                <p className="text-[11px] font-mono text-zinc-500">
+                  {(data.guideFile.size / (1024 * 1024)).toFixed(2)} МБ • Файл прикреплен
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={removeFile}
-              className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
-          </motion.div>
+          </div>
         )}
       </div>
 
-      {/* Ошибка валидации с анимацией */}
+      {/* Ошибка валидации */}
       <AnimatePresence>
         {error && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm flex items-center space-x-2"
+            exit={{ opacity: 0, y: -8 }}
+            className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs flex items-center space-x-2.5"
           >
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{error}</span>
@@ -390,17 +373,18 @@ export const Step1InitialData: React.FC<Step1InitialDataProps> = ({
       </AnimatePresence>
 
       {/* Кнопка "Далее" */}
-      <div className="flex justify-end pt-4">
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+      <div className="flex justify-end pt-2">
+        <button
           type="submit"
-          className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm transition-all shadow-xl shadow-indigo-600/30 flex items-center space-x-2 group cursor-pointer glow-effect-indigo"
+          className="inline-flex items-center space-x-2 px-8 py-3.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition-all shadow-sm hover:shadow-glow-cold cursor-pointer active:scale-95"
         >
           <span>Сформировать план документа (Шаг 2)</span>
-          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-        </motion.button>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
+
     </form>
   );
 };
+
+export default Step1InitialData;

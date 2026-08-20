@@ -86,15 +86,12 @@ export const App: React.FC = () => {
               />
             ) : (
               <div className="space-y-6">
-                <div className="text-center max-w-2xl mx-auto space-y-2 mb-6">
-                  <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] font-mono text-zinc-400 mb-2">
-                    <span>[ МАСТЕР ГЕНЕРАЦИИ ]</span>
-                  </div>
+                <div className="text-center max-w-2xl mx-auto space-y-2 mb-8">
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-100 tracking-tight">
                     Генерация работы по ГОСТ 7.32-2017
                   </h1>
                   <p className="text-xs sm:text-sm text-zinc-400">
-                    Заполните вводные данные, загрузите методические указания и соберите чистовой .docx файл
+                    Заполните вводные данные, скорректируйте структуру и соберите чистовой .docx файл
                   </p>
                 </div>
                 <WizardContainer />

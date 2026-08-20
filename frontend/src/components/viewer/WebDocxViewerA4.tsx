@@ -9,13 +9,10 @@ import {
   Eye, 
   ChevronLeft, 
   ChevronRight,
-  Maximize2,
-  FileText,
   Sliders
 } from "lucide-react";
 import { DocumentASTGraph } from "../../schemas/docAstSchema";
 import { SpotRegenerationModal } from "../modals/SpotRegenerationModal";
-import { GlassCard } from "../ui/GlassCard";
 import { triggerSuccessConfetti } from "../../lib/confetti";
 
 interface WebDocxViewerA4Props {
@@ -126,7 +123,6 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [showMarginGuide, setShowMarginGuide] = useState<boolean>(false);
 
-  // Modal Spot Regeneration state
   const [isSpotModalOpen, setIsSpotModalOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedNodeText, setSelectedNodeText] = useState<string>("");
@@ -154,30 +150,31 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
+      
       {/* Top Toolbar Bar */}
-      <div className="glass-panel p-4 rounded-3xl border border-indigo-500/20 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-20 z-40 shadow-glass">
+      <div className="dark-surface p-4 rounded-2xl border border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-20 z-40 shadow-xl">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shadow-glow-indigo">
-            <Eye className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center justify-center">
+            <Eye className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white dark:text-white light:text-slate-900 max-w-md truncate">{docTitle}</h3>
-            <p className="text-[11px] text-emerald-400 font-mono flex items-center space-x-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>ГОСТ 7.32-2017 Верифицирован • Физическая эмуляция А4 (30/10/20/20 мм)</span>
+            <h3 className="text-xs sm:text-sm font-bold text-zinc-100 max-w-md truncate">{docTitle}</h3>
+            <p className="text-[11px] text-zinc-400 font-mono flex items-center space-x-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>ГОСТ 7.32-2017 • Поля 30/15/20/20 мм</span>
             </p>
           </div>
         </div>
 
         {/* Page & Zoom Controls */}
-        <div className="flex flex-wrap items-center space-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center space-x-2.5 gap-y-2">
           {/* Toggle Margin Lines Guide */}
           <button
             onClick={() => setShowMarginGuide(!showMarginGuide)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-medium flex items-center space-x-1.5 transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center space-x-1.5 transition-colors cursor-pointer ${
               showMarginGuide
-                ? "bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-glow-indigo"
-                : "bg-slate-900 dark:bg-slate-900 light:bg-slate-200 border-slate-800 text-slate-400 hover:text-white"
+                ? "bg-zinc-800 border-zinc-600 text-zinc-100"
+                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200"
             }`}
             title="Показать / скрыть направляющие полей ГОСТ"
           >
@@ -186,85 +183,83 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
           </button>
 
           {/* Zoom controls */}
-          <div className="flex items-center space-x-1 bg-slate-900 dark:bg-slate-900 light:bg-slate-200 px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
+          <div className="flex items-center space-x-1 bg-zinc-900 px-2.5 py-1.5 rounded-xl border border-zinc-800 text-xs">
             <button
               onClick={handleZoomOut}
-              className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
               title="Уменьшить"
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={resetZoom}
-              className="font-mono text-slate-200 dark:text-slate-200 light:text-slate-800 px-2 min-w-[45px] text-center hover:text-indigo-400 cursor-pointer"
+              className="font-mono text-zinc-200 px-1.5 min-w-[40px] text-center hover:text-zinc-100 cursor-pointer text-xs"
               title="Сбросить масштаб"
             >
               {zoomPercent}%
             </button>
             <button
               onClick={handleZoomIn}
-              className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
               title="Увеличить"
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Page switcher */}
-          <div className="flex items-center space-x-2 bg-slate-900 dark:bg-slate-900 light:bg-slate-200 px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
+          <div className="flex items-center space-x-1.5 bg-zinc-900 px-2.5 py-1.5 rounded-xl border border-zinc-800 text-xs">
             <button
               disabled={currentPage <= 1}
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              className="p-1 text-slate-400 hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+              className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <span className="text-slate-300 dark:text-slate-300 light:text-slate-700 font-medium">
-              Стр. <strong className="text-white dark:text-white light:text-slate-900 font-mono">{currentPage}</strong> из {totalPages}
+            <span className="text-zinc-400 text-xs font-mono">
+              Стр. <strong className="text-zinc-100">{currentPage}</strong> / {totalPages}
             </span>
             <button
               disabled={currentPage >= totalPages}
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              className="p-1 text-slate-400 hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+              className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Download DOCX button */}
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
+          <button
             onClick={() => {
               triggerSuccessConfetti();
               if (onDownloadDocx) {
                 onDownloadDocx();
               } else {
-                alert("Идет компиляция и скачивание файла .docx по ГОСТу...");
+                alert("Компиляция и скачивание файла .docx по ГОСТу...");
               }
             }}
-            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-xs transition-all shadow-xl shadow-indigo-600/30 flex items-center space-x-2 cursor-pointer glow-effect-indigo"
+            className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition-all shadow-sm hover:shadow-glow-cold flex items-center space-x-1.5 cursor-pointer active:scale-95"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5" />
             <span>Скачать .DOCX</span>
-          </motion.button>
+          </button>
         </div>
       </div>
 
       {/* A4 Web DOCX Physical Paper Emulator Container */}
-      <div className="overflow-x-auto py-10 flex flex-col items-center justify-center bg-slate-950/80 dark:bg-slate-950/80 light:bg-slate-200/60 rounded-3xl border border-slate-900 shadow-inner min-h-[700px]">
+      <div className="overflow-x-auto py-8 flex flex-col items-center justify-center bg-[#070709] rounded-2xl border border-zinc-900 shadow-inner min-h-[700px]">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentPage}
-            initial={{ opacity: 0, y: 15, scale: (zoomPercent / 100) * 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: zoomPercent / 100 }}
-            exit={{ opacity: 0, y: -15, scale: (zoomPercent / 100) * 0.98 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}
+            initial={{ opacity: 0, scale: (zoomPercent / 100) * 0.99 }}
+            animate={{ opacity: 1, scale: zoomPercent / 100 }}
+            exit={{ opacity: 0, scale: (zoomPercent / 100) * 0.99 }}
+            transition={{ duration: 0.2 }}
             className="origin-top my-4"
           >
             {/* Physical Realistic A4 Sheet: 210mm x 297mm (~794px x 1123px) */}
             <div
-              className="bg-[#FAFAFA] text-slate-950 relative select-text transition-shadow duration-300 rounded-sm border border-slate-300"
+              className="bg-[#FAFAFA] text-zinc-950 relative select-text transition-shadow duration-300 rounded-sm border border-zinc-300"
               style={{
                 width: "794px",
                 minHeight: "1123px",
@@ -274,19 +269,19 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
                 paddingTop: "75px",   // 20 mm top margin
                 paddingBottom: "75px",// 20 mm bottom margin
                 boxSizing: "border-box",
-                boxShadow: "0 25px 65px -12px rgba(0, 0, 0, 0.65), 0 0 20px rgba(99, 102, 241, 0.15)",
+                boxShadow: "0 25px 65px -12px rgba(0, 0, 0, 0.7)",
               }}
             >
               {/* Optional Translucent ГОСТ Margin Guides */}
               {showMarginGuide && (
-                <div className="absolute inset-0 pointer-events-none border-t border-b border-indigo-500/20" style={{ margin: "75px 38px 75px 113px", outline: "1px dashed rgba(99, 102, 241, 0.3)" }}>
-                  <div className="absolute top-2 left-2 text-[9px] font-mono text-indigo-400">Поля: Левое 30мм, Правое 10мм, Верх/Низ 20мм</div>
+                <div className="absolute inset-0 pointer-events-none border-t border-b border-rose-500/30" style={{ margin: "75px 38px 75px 113px", outline: "1px dashed rgba(244, 63, 94, 0.4)" }}>
+                  <div className="absolute top-2 left-2 text-[9px] font-mono text-rose-600 bg-rose-50 px-1 rounded border border-rose-200">Поля: Левое 30мм, Правое 10мм, Верх/Низ 20мм</div>
                 </div>
               )}
 
               {/* Page Number GOST */}
               {!pageData.isTitlePage && (
-                <div className="absolute top-8 left-0 right-0 text-center text-sm font-serif text-slate-800 font-bold">
+                <div className="absolute top-8 right-10 text-right text-xs font-serif text-zinc-800 font-bold">
                   {pageData.pageNumber}
                 </div>
               )}
@@ -294,33 +289,33 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
               {/* Page Content */}
               {pageData.isTitlePage ? (
                 <div className="h-full flex flex-col justify-between text-center leading-tight py-4">
-                  <div className="space-y-2 uppercase text-xs tracking-tight font-serif font-bold">
+                  <div className="space-y-2 uppercase text-xs tracking-tight font-serif font-bold text-zinc-800">
                     <p>{pageData.institution}</p>
                     <p>{pageData.university}</p>
                     <p className="pt-2">{pageData.department}</p>
                   </div>
 
                   <div className="my-16 space-y-4">
-                    <h1 className="text-xl font-bold uppercase tracking-widest">{pageData.type}</h1>
-                    <p className="text-sm italic font-serif">{pageData.subject}</p>
-                    <p className="text-base font-bold uppercase pt-4 px-4 leading-normal">
+                    <h1 className="text-lg font-bold uppercase tracking-widest text-zinc-900 font-sans">{pageData.type}</h1>
+                    <p className="text-xs italic font-serif text-zinc-700">{pageData.subject}</p>
+                    <p className="text-base font-bold uppercase pt-4 px-4 leading-normal text-zinc-900 font-sans">
                       {pageData.title}
                     </p>
                   </div>
 
-                  <div className="text-right text-xs font-serif space-y-2 pr-8 my-12">
+                  <div className="text-right text-xs font-serif space-y-2 pr-8 my-12 text-zinc-800">
                     <p>Выполнил студент: <span className="font-bold">{pageData.author}</span></p>
                     <p>Проверил руководитель: __________________</p>
                   </div>
 
-                  <div className="text-center text-xs font-serif uppercase pt-8">
+                  <div className="text-center text-xs font-serif uppercase pt-8 text-zinc-600">
                     {pageData.cityYear}
                   </div>
                 </div>
               ) : (
-                <div className="space-y-6 text-justify text-[14pt] leading-[1.5]">
+                <div className="space-y-5 text-justify text-[14pt] leading-[1.5] text-zinc-900">
                   {pageData.title && (
-                    <h2 className="text-center font-bold text-[14pt] uppercase tracking-wide mb-6">
+                    <h2 className="text-center font-bold text-[14pt] uppercase tracking-wide mb-6 font-sans">
                       {pageData.title}
                     </h2>
                   )}
@@ -328,7 +323,7 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
                   {pageData.content?.map((item: any, idx: number) => {
                     if (item.type === "toc_item") {
                       return (
-                        <div key={idx} className="flex justify-between items-baseline text-sm font-serif border-b border-dotted border-slate-400 pb-1">
+                        <div key={idx} className="flex justify-between items-baseline text-sm font-serif border-b border-dotted border-zinc-400 pb-1">
                           <span>{item.title}</span>
                           <span className="font-bold ml-2">{item.page}</span>
                         </div>
@@ -337,7 +332,7 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
 
                     if (item.type === "subtitle") {
                       return (
-                        <h3 key={idx} className="font-bold text-[14pt] mt-4 mb-2">
+                        <h3 key={idx} className="font-bold text-[14pt] mt-4 mb-2 font-sans">
                           {item.text}
                         </h3>
                       );
@@ -349,10 +344,10 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
                           key={idx}
                           onMouseEnter={() => setHoveredNodeId(item.id)}
                           onMouseLeave={() => setHoveredNodeId(null)}
-                          className="relative group transition-all rounded p-1 border border-transparent hover:border-indigo-400/50 hover:bg-indigo-50/40"
+                          className="relative group transition-all rounded p-1 border border-transparent hover:border-zinc-400/50 hover:bg-zinc-100/60"
                           style={{ textIndent: "1.25cm" }}
                         >
-                          <p className="text-slate-900">{item.text}</p>
+                          <p className="text-zinc-900">{item.text}</p>
 
                           {/* Spot Regeneration Micro-interaction Floating Button */}
                           <AnimatePresence>
@@ -362,10 +357,10 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9 }}
                                 onClick={() => handleOpenSpotModal(item.id, item.text)}
-                                className="absolute right-2 -top-3 px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[11px] font-sans font-semibold flex items-center space-x-1.5 shadow-lg shadow-amber-500/30 hover:from-amber-400 hover:to-amber-500 transition-all z-20 cursor-pointer glow-effect-gold"
+                                className="absolute right-2 -top-3 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-100 border border-zinc-700 text-[11px] font-sans font-medium flex items-center space-x-1.5 shadow-lg transition-all z-20 cursor-pointer"
                               >
-                                <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse" />
-                                <span>Перегенерировать абзац (1 Кредит)</span>
+                                <Sparkles className="w-3 h-3 text-amber-300" />
+                                <span>Перегенерировать абзац</span>
                               </motion.button>
                             )}
                           </AnimatePresence>
@@ -376,12 +371,12 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
                     if (item.type === "table") {
                       return (
                         <div key={idx} className="my-6 space-y-2">
-                          <p className="text-left font-serif italic text-xs">{item.caption}</p>
-                          <table className="w-full border-collapse border border-black text-xs font-serif text-center">
+                          <p className="text-left font-serif italic text-xs text-zinc-700">{item.caption}</p>
+                          <table className="w-full border-collapse border border-zinc-900 text-xs font-serif text-center">
                             <thead>
-                              <tr className="bg-slate-100">
+                              <tr className="bg-zinc-100">
                                 {item.headers.map((h: string, hIdx: number) => (
-                                  <th key={hIdx} className="border border-black p-2 font-bold">{h}</th>
+                                  <th key={hIdx} className="border border-zinc-900 p-2 font-bold">{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -389,7 +384,7 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
                               {item.rows.map((row: string[], rIdx: number) => (
                                 <tr key={rIdx}>
                                   {row.map((cell: string, cIdx: number) => (
-                                    <td key={cIdx} className="border border-black p-2">{cell}</td>
+                                    <td key={cIdx} className="border border-zinc-900 p-2">{cell}</td>
                                   ))}
                                 </tr>
                               ))}
@@ -402,10 +397,10 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
                     if (item.type === "formula") {
                       return (
                         <div key={idx} className="my-4 flex items-center justify-between text-sm font-serif">
-                          <div className="flex-1 text-center font-mono italic">
+                          <div className="flex-1 text-center font-mono italic text-zinc-900">
                             {item.formula_text}
                           </div>
-                          <div className="font-bold">
+                          <div className="font-bold font-sans text-xs">
                             {item.formula_number}
                           </div>
                         </div>
@@ -421,21 +416,19 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
         </AnimatePresence>
 
         {/* Page Thumbnail Slider Bar */}
-        <div className="mt-6 flex items-center space-x-2 bg-slate-900/90 dark:bg-slate-900/90 light:bg-white p-2.5 rounded-2xl border border-slate-800 shadow-lg">
+        <div className="mt-6 flex items-center space-x-2 bg-zinc-900/90 p-2 rounded-xl border border-zinc-800 shadow-lg">
           {mockPagesData.map((p) => (
-            <motion.button
+            <button
               key={p.pageNumber}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.95 }}
               onClick={() => setCurrentPage(p.pageNumber)}
-              className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all cursor-pointer ${
                 currentPage === p.pageNumber
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 glow-effect-indigo"
-                  : "bg-slate-800 text-slate-400 hover:text-white"
+                  ? "bg-zinc-100 text-zinc-950 shadow-sm"
+                  : "bg-zinc-950 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80"
               }`}
             >
               Стр. {p.pageNumber}
-            </motion.button>
+            </button>
           ))}
         </div>
       </div>
@@ -451,3 +444,5 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
     </div>
   );
 };
+
+export default WebDocxViewerA4;

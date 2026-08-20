@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, FileText, Sliders, PlayCircle, Eye, ChevronRight } from "lucide-react";
+import { Check, FileText, Sliders, PlayCircle, Eye } from "lucide-react";
 import { Step1InitialData } from "./Step1InitialData";
 import { AstTreeEditor } from "../ast/AstTreeEditor";
 import { GenerationProgressScreen } from "../generation/GenerationProgressScreen";
@@ -9,30 +9,27 @@ import { WizardFormData, initialWizardData } from "./types";
 import { OutlineAST } from "../../schemas/docAstSchema";
 
 const wizardSteps = [
-  { id: 1, name: "Исходные данные", desc: "Тема и ГОСТ настройки", icon: FileText },
-  { id: 2, name: "План документа", desc: "AST Tree Editor", icon: Sliders },
-  { id: 3, name: "Генерация", desc: "WebSocket Стриминг", icon: PlayCircle },
-  { id: 4, name: "Просмотр & ГОСТ", desc: "Web DOCX Viewer A4", icon: Eye },
+  { id: 1, number: "01", name: "Исходные данные", desc: "Тема и ГОСТ параметры", icon: FileText },
+  { id: 2, number: "02", name: "План документа", desc: "AST Tree структура", icon: Sliders },
+  { id: 3, number: "03", name: "Генерация", desc: "Сборка документа", icon: PlayCircle },
+  { id: 4, number: "04", name: "Готовый DOCX", desc: "Просмотр и экспорт", icon: Eye },
 ];
 
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 120 : -120,
+    x: direction > 0 ? 80 : -80,
     opacity: 0,
-    scale: 0.98,
-    filter: "blur(4px)",
+    scale: 0.99,
   }),
   center: {
     x: 0,
     opacity: 1,
     scale: 1,
-    filter: "blur(0px)",
   },
   exit: (direction: number) => ({
-    x: direction < 0 ? 120 : -120,
+    x: direction < 0 ? 80 : -80,
     opacity: 0,
-    scale: 0.98,
-    filter: "blur(4px)",
+    scale: 0.99,
   }),
 };
 
@@ -73,33 +70,20 @@ export const WizardContainer: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
-      {/* Header Info Pill */}
-      <div className="flex items-center justify-between mb-8 px-4 py-3 glass-panel rounded-2xl border border-indigo-500/20 shadow-glass-sm">
-        <div className="flex items-center space-x-2 text-xs font-semibold text-indigo-400 dark:text-indigo-400 light:text-indigo-600">
-          <span className="px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-            Шаг {currentStep} из {wizardSteps.length}
-          </span>
-          <span className="text-slate-400 dark:text-slate-400 light:text-slate-600 font-normal hidden sm:inline">
-            — {wizardSteps[currentStep - 1].name}
-          </span>
-        </div>
-        <div className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600 flex items-center space-x-1">
-          <span>ГОСТ 7.32-2017 Compliance</span>
-          <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />
-        </div>
-      </div>
-
-      {/* Step Stepper Navigation */}
-      <div className="mb-10 p-6 glass-panel rounded-3xl border border-slate-800/80 dark:border-slate-800/80 light:border-slate-200 relative overflow-hidden">
-        <div className="flex items-center justify-between relative">
+    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
+      {/* Top Stepper Navigation (Minimalist Dark Rail) */}
+      <div className="mb-8 p-4 sm:p-6 dark-surface rounded-2xl border border-zinc-800 shadow-xl relative overflow-hidden">
+        <div className="flex items-center justify-between relative max-w-4xl mx-auto">
+          
           {/* Progress bar background line */}
-          <div className="absolute top-1/2 left-4 right-4 h-1 bg-slate-800 dark:bg-slate-800 light:bg-slate-200 -translate-y-1/2 z-0 rounded-full" />
+          <div className="absolute top-5 left-8 right-8 h-[2px] bg-zinc-800 -translate-y-1/2 z-0 rounded-full" />
+          
+          {/* Active progress track */}
           <motion.div
-            className="absolute top-1/2 left-4 h-1 bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 -translate-y-1/2 z-0 rounded-full shadow-glow-indigo"
+            className="absolute top-5 left-8 h-[2px] bg-zinc-300 -translate-y-1/2 z-0 rounded-full shadow-sm"
             initial={false}
             animate={{
-              width: `calc(${((currentStep - 1) / (wizardSteps.length - 1)) * 100}% - 2rem)`,
+              width: `calc(${((currentStep - 1) / (wizardSteps.length - 1)) * 100}% - 4rem)`,
             }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
           />
@@ -111,45 +95,39 @@ export const WizardContainer: React.FC = () => {
 
             return (
               <div key={step.id} className="relative z-10 flex flex-col items-center">
-                <motion.button
-                  whileHover={step.id <= currentStep ? { scale: 1.08 } : {}}
-                  whileTap={step.id <= currentStep ? { scale: 0.95 } : {}}
+                <button
                   type="button"
                   onClick={() => step.id < currentStep && goToStep(step.id)}
                   disabled={step.id > currentStep}
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-sm transition-all duration-300 ${
+                  className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center font-mono font-bold text-xs transition-all duration-200 ${
                     isCompleted
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 cursor-pointer"
+                      ? "bg-zinc-800 text-zinc-100 border border-zinc-600 hover:border-zinc-400 cursor-pointer shadow-sm"
                       : isCurrent
-                      ? "bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 text-white ring-4 ring-indigo-500/25 shadow-xl shadow-indigo-500/40 glow-effect-indigo"
-                      : "bg-slate-900 dark:bg-slate-900 light:bg-slate-200 border border-slate-800 dark:border-slate-800 light:border-slate-300 text-slate-500 cursor-not-allowed"
+                      ? "bg-zinc-100 text-zinc-950 ring-4 ring-zinc-700/40 shadow-lg shadow-black/50"
+                      : "bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed"
                   }`}
                 >
                   {isCompleted ? (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                    >
-                      <Check className="w-5 h-5" />
-                    </motion.div>
+                    <Check className="w-4 h-4 text-emerald-400" />
                   ) : (
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-4 h-4" />
                   )}
-                </motion.button>
-                <div className="mt-3 text-center">
+                </button>
+
+                <div className="mt-2.5 text-center">
                   <p
                     className={`text-xs font-semibold ${
                       isCurrent
-                        ? "text-indigo-400 dark:text-indigo-400 light:text-indigo-600"
+                        ? "text-zinc-100 font-bold"
                         : isCompleted
-                        ? "text-slate-300 dark:text-slate-300 light:text-slate-700"
-                        : "text-slate-500"
+                        ? "text-zinc-300"
+                        : "text-zinc-500"
                     }`}
                   >
+                    <span className="font-mono text-[11px] mr-1 hidden sm:inline">{step.number}.</span>
                     {step.name}
                   </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-500 light:text-slate-500 hidden sm:block">
+                  <p className="text-[10px] text-zinc-500 hidden sm:block font-mono mt-0.5">
                     {step.desc}
                   </p>
                 </div>
@@ -159,7 +137,7 @@ export const WizardContainer: React.FC = () => {
         </div>
       </div>
 
-      {/* Step Content Container with Framer Motion Slide Transitions */}
+      {/* Step Content Container with Slide Transitions */}
       <AnimatePresence mode="wait" custom={direction}>
         <motion.div
           key={currentStep}
@@ -169,9 +147,8 @@ export const WizardContainer: React.FC = () => {
           animate="center"
           exit="exit"
           transition={{
-            x: { type: "spring", stiffness: 300, damping: 30 },
-            opacity: { duration: 0.25 },
-            scale: { duration: 0.25 },
+            duration: 0.2,
+            ease: "easeInOut",
           }}
           className="w-full"
         >
@@ -210,3 +187,5 @@ export const WizardContainer: React.FC = () => {
     </div>
   );
 };
+
+export default WizardContainer;

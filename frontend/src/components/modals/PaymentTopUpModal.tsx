@@ -7,7 +7,6 @@ import {
   QrCode, 
   Wallet, 
   CheckCircle2, 
-  Sparkles, 
   ShieldCheck, 
   ArrowRight,
   Zap
@@ -34,7 +33,7 @@ const creditPackages: PackageItem[] = [
     name: "Старт",
     credits: 5,
     price: 290,
-    desc: "Хватит на 1 генерацию полномерного документа",
+    desc: "1 документ любого объема",
   },
   {
     id: "pkg_academic",
@@ -42,14 +41,14 @@ const creditPackages: PackageItem[] = [
     credits: 15,
     price: 690,
     popular: true,
-    desc: "Хватит на 3 документа или 15 точечных перегенераций",
+    desc: "3 документа + точечные правки",
   },
   {
     id: "pkg_max",
     name: "Сессионный Макс",
     credits: 50,
     price: 1890,
-    desc: "Полный безлимит для написания дипломов и ВКР",
+    desc: "Для дипломных проектов и ВКР",
   },
 ];
 
@@ -73,7 +72,6 @@ export const PaymentTopUpModal: React.FC<PaymentTopUpModalProps> = ({
     e.preventDefault();
     setIsLoading(true);
 
-    // Симуляция обращения к эндпоинту платежного шлюза ЮKassa
     setTimeout(() => {
       setIsLoading(false);
       setIsSuccess(true);
@@ -84,46 +82,46 @@ export const PaymentTopUpModal: React.FC<PaymentTopUpModalProps> = ({
         setIsSuccess(false);
         onClose();
       }, 1500);
-    }, 1800);
+    }, 1500);
   };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
-          className="glass-panel w-full max-w-xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden relative"
+          className="dark-surface w-full max-w-lg rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden relative"
         >
           {/* Header */}
-          <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+          <div className="px-6 py-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/60">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/20 font-bold">
-                <Coins className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-amber-400">
+                <Coins className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Пополнение баланса кредитов</h3>
-                <p className="text-xs text-slate-400">Мгновенное зачисление через защищенный шлюз ЮKassa</p>
+                <h3 className="text-sm font-bold text-zinc-100">Пополнение баланса кредитов</h3>
+                <p className="text-[11px] text-zinc-400 font-mono">Зачисление через ЮKassa</p>
               </div>
             </div>
 
             <button
               onClick={onClose}
               disabled={isLoading}
-              className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Body */}
-          <form onSubmit={handlePay} className="p-6 space-y-6">
+          <form onSubmit={handlePay} className="p-6 space-y-5">
             {/* 1. Выбор Пакета */}
-            <div className="space-y-3">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                1. Выберите тарифный пакет
+            <div className="space-y-2.5">
+              <label className="text-xs font-mono uppercase tracking-wider text-zinc-400">
+                1. Выберите пакет
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -133,28 +131,28 @@ export const PaymentTopUpModal: React.FC<PaymentTopUpModalProps> = ({
                     <div
                       key={pkg.id}
                       onClick={() => setSelectedPkgId(pkg.id)}
-                      className={`cursor-pointer rounded-2xl p-4 border transition-all duration-200 relative flex flex-col justify-between ${
+                      className={`cursor-pointer rounded-xl p-3.5 border transition-all relative flex flex-col justify-between ${
                         isSelected
-                          ? "bg-amber-500/10 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500"
-                          : "glass-card hover:border-slate-700"
+                          ? "bg-zinc-900 border-zinc-400 shadow-md ring-1 ring-white/10"
+                          : "bg-zinc-950/60 border-zinc-800 hover:border-zinc-700"
                       }`}
                     >
                       {pkg.popular && (
-                        <span className="absolute -top-2.5 right-3 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-extrabold text-[9px] uppercase tracking-wider shadow">
-                          Хит продаж
+                        <span className="absolute -top-2 right-2 px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-950 font-bold text-[9px] font-mono uppercase">
+                          Популярный
                         </span>
                       )}
 
                       <div>
-                        <h4 className="text-xs font-bold text-white mb-1">{pkg.name}</h4>
-                        <div className="text-xl font-extrabold text-amber-400 font-mono mb-1">
-                          {pkg.credits} <span className="text-xs font-normal">CR</span>
+                        <h4 className="text-xs font-bold text-zinc-200 mb-0.5">{pkg.name}</h4>
+                        <div className="text-lg font-extrabold text-zinc-100 font-mono mb-1">
+                          {pkg.credits} <span className="text-xs text-zinc-400">CR</span>
                         </div>
-                        <p className="text-[10px] text-slate-400 leading-tight">{pkg.desc}</p>
+                        <p className="text-[10px] text-zinc-400 leading-tight">{pkg.desc}</p>
                       </div>
 
-                      <div className="pt-3 mt-3 border-t border-slate-800 text-right">
-                        <span className="text-sm font-bold text-white">{pkg.price} ₽</span>
+                      <div className="pt-2.5 mt-2.5 border-t border-zinc-800 text-right">
+                        <span className="text-xs font-bold text-zinc-100 font-mono">{pkg.price} ₽</span>
                       </div>
                     </div>
                   );
@@ -163,57 +161,57 @@ export const PaymentTopUpModal: React.FC<PaymentTopUpModalProps> = ({
             </div>
 
             {/* 2. Способы Оплаты */}
-            <div className="space-y-3">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+            <div className="space-y-2.5">
+              <label className="text-xs font-mono uppercase tracking-wider text-zinc-400">
                 2. Способ оплаты
               </label>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2.5">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("sbp")}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center space-y-1.5 transition-all ${
+                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
                     paymentMethod === "sbp"
-                      ? "bg-blue-600/20 border-blue-500 text-white"
-                      : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                      ? "bg-zinc-900 border-zinc-400 text-white"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700"
                   }`}
                 >
-                  <QrCode className="w-5 h-5 text-emerald-400" />
-                  <span className="text-xs font-semibold">СБП (по QR)</span>
+                  <QrCode className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-mono">СБП (QR)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("card")}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center space-y-1.5 transition-all ${
+                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
                     paymentMethod === "card"
-                      ? "bg-blue-600/20 border-blue-500 text-white"
-                      : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                      ? "bg-zinc-900 border-zinc-400 text-white"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700"
                   }`}
                 >
-                  <CreditCard className="w-5 h-5 text-blue-400" />
-                  <span className="text-xs font-semibold">Банковская карта</span>
+                  <CreditCard className="w-4 h-4 text-zinc-200" />
+                  <span className="text-[11px] font-mono">Карта РФ</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("yookassa")}
-                  className={`p-3 rounded-xl border flex flex-col items-center justify-center space-y-1.5 transition-all ${
+                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
                     paymentMethod === "yookassa"
-                      ? "bg-blue-600/20 border-blue-500 text-white"
-                      : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                      ? "bg-zinc-900 border-zinc-400 text-white"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700"
                   }`}
                 >
-                  <Wallet className="w-5 h-5 text-indigo-400" />
-                  <span className="text-xs font-semibold">ЮKassa</span>
+                  <Wallet className="w-4 h-4 text-zinc-200" />
+                  <span className="text-[11px] font-mono">ЮKassa</span>
                 </button>
               </div>
             </div>
 
             {/* Безопасность */}
-            <div className="flex items-center space-x-2 text-xs text-slate-400 pt-1">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Защищенный 256-bit SSL платёж. Электронный чек на ваш Email.</span>
+            <div className="flex items-center space-x-2 text-[11px] font-mono text-zinc-500 pt-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Защищенный SSL-платеж. Электронный чек на Email.</span>
             </div>
 
             {/* Submit Pay Button */}
@@ -221,22 +219,22 @@ export const PaymentTopUpModal: React.FC<PaymentTopUpModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoading || isSuccess}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm shadow-xl shadow-amber-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-60"
+                className="w-full py-3 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-bold text-xs shadow-sm hover:shadow-glow-cold flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
               >
                 {isLoading ? (
                   <>
-                    <Zap className="w-4 h-4 animate-bounce" />
-                    <span>Переход к оплате ЮKassa...</span>
+                    <Zap className="w-3.5 h-3.5 animate-pulse" />
+                    <span>Переход к оплате...</span>
                   </>
                 ) : isSuccess ? (
                   <>
-                    <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                    <span>Оплата успешна! +{selectedPackage.credits} CR зачислено</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Оплата успешна! +{selectedPackage.credits} CR</span>
                   </>
                 ) : (
                   <>
-                    <span>Оплатить {selectedPackage.price} ₽ ({selectedPackage.credits} Кредитов)</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>Оплатить {selectedPackage.price} ₽ ({selectedPackage.credits} CR)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </>
                 )}
               </button>
@@ -247,3 +245,5 @@ export const PaymentTopUpModal: React.FC<PaymentTopUpModalProps> = ({
     </AnimatePresence>
   );
 };
+
+export default PaymentTopUpModal;
