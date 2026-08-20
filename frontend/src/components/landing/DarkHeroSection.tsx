@@ -1,14 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowRight, 
   FileText, 
-  Play, 
-  Check, 
-  Sparkles, 
-  Download, 
-  Terminal, 
-  FileCheck,
-  Maximize2
+  ChevronDown 
 } from "lucide-react";
 
 interface DarkHeroSectionProps {
@@ -20,150 +15,147 @@ interface DarkHeroSectionProps {
 export const DarkHeroSection: React.FC<DarkHeroSectionProps> = ({
   onStartClick,
   onPreviewDocxClick,
-  videoSrc
+  videoSrc = "/hero_section_video.mp4"
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [showCard, setShowCard] = useState(false);
+
+  // Autoplay on mount
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.muted = true;
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((error) => {
+            console.log("Autoplay prevented:", error);
+            setIsPlaying(false);
+          });
+      }
+    }
+  }, []);
+
+  // Show frosted card after 4.5 seconds of playback
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (isPlaying && !showCard) {
+      timer = setTimeout(() => {
+        setShowCard(true);
+      }, 4500);
+    }
+    return () => clearTimeout(timer);
+  }, [isPlaying, showCard]);
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current && videoRef.current.currentTime >= 4.5 && !showCard) {
+      setShowCard(true);
+    }
+  };
+
+  const handleVideoEnded = () => {
+    setIsPlaying(false);
+    setShowCard(true);
+    if (videoRef.current) {
+      // Ensure the video stays paused on the last frame
+      videoRef.current.pause();
+    }
+  };
+
+  const scrollToNextSection = () => {
+    const el = document.getElementById("how-it-works");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   return (
-    <section id="top" className="relative min-h-[85vh] flex flex-col justify-center items-center pt-8 pb-16 overflow-hidden">
-      {/* Ambient background subtle radial glows */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-zinc-700/10 blur-[140px] pointer-events-none rounded-full" />
-      <div className="absolute top-10 right-1/4 w-[300px] h-[300px] bg-white/[0.02] blur-[100px] pointer-events-none rounded-full" />
+    <section 
+      id="top" 
+      className="relative w-full h-screen min-h-[100vh] overflow-hidden flex flex-col justify-between items-center bg-black select-none"
+    >
+      {/* Background Video (Fullscreen, plays 1 time, pauses on last frame) */}
+      <video
+        ref={videoRef}
+        src={videoSrc}
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleVideoEnded}
+        onLoadedData={() => setVideoLoaded(true)}
+        className="absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-700"
+        style={{ opacity: videoLoaded ? 1 : 0.8 }}
+      />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-8">
-        
-        {/* Monospace Pill Badge */}
-        <div className="inline-flex items-center space-x-2.5 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-zinc-800 text-xs font-mono text-zinc-300 shadow-sm backdrop-blur-sm">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span className="tracking-tight">[ ГОСТ 7.32-2017 / 7.0.5-2008 ]</span>
-        </div>
+      {/* Subtle Ambient Vignette & Bottom Gradient for Smooth Section Transition */}
+      <div className="absolute inset-0 pointer-events-none z-10 bg-gradient-to-t from-[#09090b] via-black/10 to-black/30" />
+      <div className="absolute inset-0 pointer-events-none z-10 shadow-[inset_0_0_120px_rgba(0,0,0,0.6)]" />
 
-        {/* Headline (H1) */}
-        <div className="space-y-4 max-w-4xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-zinc-100 tracking-tight leading-[1.12]">
-            Курсовая по ГОСТу за 5 минут <br className="hidden sm:inline" />
-            <span className="text-zinc-400 font-normal">без правок в Word</span>
-          </h1>
+      {/* Top Spacer for Fixed Header */}
+      <div className="relative z-20 pt-20 sm:pt-24 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" />
 
-          {/* Subtitle */}
-          <p className="text-base sm:text-lg lg:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed font-normal">
-            Нейросеть генерирует глубокое исследование, рассчитывает отступы и собирает готовый .docx с формулами, таблицами и литературой.
-          </p>
-        </div>
+      {/* Center Frosted Glass Card (Appears smoothly after 4.5 seconds with exact Header Glass effect) */}
+      <div className="relative z-30 w-full max-w-3xl sm:max-w-[820px] mx-auto px-4 sm:px-6 my-auto flex items-center justify-center">
+        <AnimatePresence>
+          {showCard && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full rounded-3xl bg-black/40 backdrop-blur-md border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] p-7 sm:p-11 text-center space-y-6"
+            >
+              {/* Main Headline */}
+              <div className="space-y-3">
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md">
+                  Курсовая и ВКР по ГОСТу <br className="hidden sm:inline" />
+                  <span className="text-zinc-300 font-medium">без ручных правок в Word</span>
+                </h1>
 
-        {/* CTA Button Group */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
-          {/* High-contrast Primary Button */}
-          <button
-            onClick={onStartClick}
-            className="w-full sm:w-auto inline-flex items-center justify-center space-x-2.5 px-7 py-3.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-sm transition-all shadow-sm hover:shadow-glow-cold cursor-pointer active:scale-95"
-          >
-            <span>Сгенерировать работу</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+                <p className="text-sm sm:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed drop-shadow">
+                  Генерация глубокого исследования со 100% соблюдением отступов, формул, таблиц и списка литературы.
+                </p>
+              </div>
 
-          {/* Secondary Ghost Button */}
-          <button
-            onClick={onPreviewDocxClick || (() => {
-              const el = document.getElementById("gost-features");
-              el?.scrollIntoView({ behavior: "smooth" });
-            })}
-            className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl bg-zinc-900/60 hover:bg-zinc-800/80 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 font-medium text-sm transition-all cursor-pointer active:scale-95"
-          >
-            <FileText className="w-4 h-4 text-zinc-400" />
-            <span>Посмотреть пример .docx</span>
-          </button>
-        </div>
+              {/* 2 CTA Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
+                <button
+                  onClick={onStartClick}
+                  className="w-full sm:w-auto inline-flex items-center justify-center space-x-2.5 px-8 py-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-950 font-bold text-sm sm:text-base transition-all shadow-xl hover:shadow-white/20 cursor-pointer active:scale-95"
+                >
+                  <span>Сгенерировать работу</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
 
-        {/* Micro Guarantee Bullets */}
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-mono text-zinc-500 pt-1">
-          <div className="flex items-center space-x-1.5">
-            <Check className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Шрифт Times New Roman 14pt</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <Check className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Отступы 30 / 15 / 20 / 20 мм</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <Check className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Оригинальность 85%+</span>
-          </div>
-        </div>
+                <button
+                  onClick={onPreviewDocxClick || scrollToNextSection}
+                  className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-4 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-zinc-200 hover:text-white font-medium text-sm sm:text-base backdrop-blur-md transition-all cursor-pointer active:scale-95"
+                >
+                  <FileText className="w-4 h-4 text-zinc-400" />
+                  <span>Посмотреть пример .docx</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-        {/* Video / Generation Demo Placeholder */}
-        <div className="pt-6 w-full max-w-4xl mx-auto">
-          <div className="dark-surface rounded-2xl p-2 sm:p-3 relative overflow-hidden group shadow-2xl">
-            
-            {/* Ambient Radial Gradient Background in Center */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-800/40 via-zinc-950/90 to-[#09090b] pointer-events-none" />
-
-            {/* Video or Fallback Interface Container */}
-            <div className="relative aspect-[16/9] w-full rounded-xl bg-zinc-950 border border-zinc-800/80 overflow-hidden flex flex-col justify-between p-4 sm:p-6">
-              {videoSrc ? (
-                <video
-                  src={videoSrc}
-                  controls={isPlaying}
-                  autoPlay={isPlaying}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <>
-                  {/* Top Bar of Video Frame */}
-                  <div className="flex items-center justify-between text-xs font-mono text-zinc-500 z-10">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-zinc-700 inline-block" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-zinc-700 inline-block" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-zinc-700 inline-block" />
-                      <span className="ml-2 text-zinc-400 hidden sm:inline">preview_generation_stream.docx</span>
-                    </div>
-                    <div className="flex items-center space-x-2 bg-zinc-900/90 px-2.5 py-1 rounded-md border border-zinc-800 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-zinc-300">GOST AST Engine: Active</span>
-                    </div>
-                  </div>
-
-                  {/* Center Radial Glow & Interactive Simulation */}
-                  <div className="relative flex flex-col items-center justify-center my-auto py-6 z-10 space-y-4">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-zinc-900/90 border border-zinc-700 flex items-center justify-center text-zinc-200 group-hover:scale-105 group-hover:border-zinc-500 group-hover:text-white transition-all shadow-xl shadow-black/60 cursor-pointer">
-                      <Play className="w-6 h-6 sm:w-7 sm:h-7 translate-x-0.5 fill-current" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="font-mono text-xs text-zinc-300 font-medium">
-                        Демонстрация генерации и нормоконтроля (0:45)
-                      </div>
-                      <div className="text-[11px] text-zinc-500">
-                        Посмотрите, как AST-парсер строит формулы, таблицы и литературу
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom Stream Status Indicator Bar */}
-                  <div className="z-10 grid grid-cols-3 gap-2 pt-3 border-t border-zinc-800/80 text-[11px] font-mono text-zinc-400">
-                    <div className="text-left">
-                      <span className="text-zinc-500 block text-[10px]">ФОРМАТ</span>
-                      <span className="text-zinc-200 font-semibold">.DOCX (OpenXML)</span>
-                    </div>
-                    <div className="text-center">
-                      <span className="text-zinc-500 block text-[10px]">ВЕРСТКА</span>
-                      <span className="text-zinc-200 font-semibold">ГОСТ 7.32-2017</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-zinc-500 block text-[10px]">СКОРОСТЬ</span>
-                      <span className="text-emerald-400 font-semibold">~120 сек / работа</span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-          </div>
-        </div>
-
+      {/* Bottom Scroll Prompt (Bouncing Chevron Only) */}
+      <div className="relative z-20 pb-8 text-center">
+        <button
+          onClick={scrollToNextSection}
+          aria-label="Листать вниз"
+          className="p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer group"
+        >
+          <ChevronDown className="w-6 h-6 animate-bounce text-zinc-400 group-hover:text-white transition-colors" />
+        </button>
       </div>
     </section>
   );

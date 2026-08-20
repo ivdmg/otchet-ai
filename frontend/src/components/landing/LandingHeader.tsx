@@ -29,7 +29,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-black/40 border-b border-white/10 transition-all">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full backdrop-blur-md bg-black/40 border-b border-white/10 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         
         {/* Brand Logo (Monospace / Minimalist Serif Mark) */}
