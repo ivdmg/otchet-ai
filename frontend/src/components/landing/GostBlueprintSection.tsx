@@ -84,17 +84,13 @@ export const GostBlueprintSection: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] font-mono text-zinc-400">
-            <span>[ АНАТОМИЯ ИДЕАЛЬНОЙ СТРАНИЦЫ ]</span>
-          </div>
-
+        <div className="text-center max-w-3xl mx-auto space-y-3 mb-16">
           <h2 className="text-3xl sm:text-4xl font-extrabold text-zinc-100 tracking-tight">
             Интерактивный чертеж ГОСТ 7.32-2017
           </h2>
 
           <p className="text-sm sm:text-base text-zinc-400 leading-relaxed max-w-2xl mx-auto">
-            Наведите курсор на маркеры или параметры, чтобы увидеть точную геометрию академической верстки.
+            Наведите курсор на параметры, чтобы увидеть точную геометрию академической верстки.
           </p>
         </div>
 
