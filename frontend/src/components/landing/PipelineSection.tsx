@@ -49,15 +49,15 @@ const STEPS: StepItem[] = [
 export const PipelineSection: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Scroll Progress Listener across the vertical timeline
+  // Scroll Progress Listener across the vertical timeline with extended smooth offset
   const { scrollYProgress } = useScroll({
     target: containerRef,
-    offset: ["start 65%", "end 45%"]
+    offset: ["start 80%", "end 20%"]
   });
 
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 20,
+    stiffness: 50,
+    damping: 25,
     restDelta: 0.001
   });
 

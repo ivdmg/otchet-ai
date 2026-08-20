@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { LandingHeader } from "./LandingHeader";
 import { DarkHeroSection } from "./DarkHeroSection";
 import { PipelineSection } from "./PipelineSection";
+import { UniversitiesTickerSection } from "./UniversitiesTickerSection";
 import { GostBlueprintSection } from "./GostBlueprintSection";
 import { PricingCardsSection } from "./PricingCardsSection";
 import { FaqAccordionSection } from "./FaqAccordionSection";
@@ -48,21 +49,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* 2. Interactive Pipeline (3 Steps to Done) */}
         <PipelineSection />
 
-        {/* 3. Anatomy of an Ideal Page (Interactive GOST Blueprint) */}
+        {/* 3. Universities Ticker (Scroll-driven Parallax Marquee) */}
+        <UniversitiesTickerSection />
+
+        {/* 4. Anatomy of an Ideal Page (Interactive GOST Blueprint) */}
         <GostBlueprintSection />
 
-        {/* 4. Pricing Cards (3 Tiers) */}
+        {/* 5. Pricing Cards (3 Tiers) */}
         <PricingCardsSection
           onSelectPlan={onSelectPlan}
           onStartGenerator={onStartGenerator}
         />
 
-        {/* 5. Academic Guarantees & FAQ (Accordion) */}
+        {/* 6. Academic Guarantees & FAQ (Accordion) */}
         <FaqAccordionSection />
 
       </main>
 
-      {/* 6. Minimal Footer */}
+      {/* 7. Minimal Footer */}
       <MinimalFooter />
 
       {/* Interactive .docx Sample Preview Modal */}
