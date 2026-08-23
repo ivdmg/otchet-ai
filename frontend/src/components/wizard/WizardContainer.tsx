@@ -164,7 +164,11 @@ export const WizardContainer: React.FC = () => {
             <AstTreeEditor
               initialOutline={astOutline}
               docTitle={formData.title}
+              docSubject={formData.subject}
               docType={formData.docType}
+              chapterCount={formData.chapterCount}
+              targetPages={formData.pageCount}
+              customPrompt={formData.customPrompt}
               onSave={handleSaveOutline}
               onBack={handlePrevStep}
             />

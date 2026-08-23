@@ -4,22 +4,23 @@ export interface WizardFormData {
   docType: DocType;
   title: string;
   subject: string;
+  pageCount: number;
+  chapterCount: number;
+  customPrompt?: string;
+  guideFile?: File | null;
   authorName?: string;
   institution?: string;
   city?: string;
   year?: number;
-  guideFile?: File | null;
-  chapterCount: number;
 }
 
 export const initialWizardData: WizardFormData = {
   docType: "coursework",
   title: "",
   subject: "",
-  authorName: "",
-  institution: "",
-  city: "Москва",
-  year: new Date().getFullYear(),
-  guideFile: null,
+  pageCount: 25,
   chapterCount: 3,
+  customPrompt: "",
+  guideFile: null,
 };
+
