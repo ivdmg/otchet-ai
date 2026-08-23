@@ -15,7 +15,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col relative selection:bg-zinc-700 selection:text-white font-sans">
+    <div className="min-h-screen kast-bg text-zinc-100 flex flex-col relative selection:bg-zinc-700 selection:text-white font-sans antialiased">
       <SeoHead activeTab={activeTab} />
 
       {activeTab === "landing" ? (
@@ -29,11 +29,11 @@ export const App: React.FC = () => {
       ) : (
         <div className="min-h-screen flex flex-col">
           {/* App Header for Wizard and Dashboard */}
-          <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-black/50 border-b border-zinc-800 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+          <header className="sticky top-0 z-50 w-full backdrop-blur-xl bg-[#060608]/80 border-b border-white/[0.08] px-4 sm:px-8 py-3.5 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => setActiveTab("landing")}
-                className="flex items-center space-x-2 text-xs font-mono text-zinc-400 hover:text-zinc-100 transition-colors px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 cursor-pointer"
+                className="flex items-center space-x-2 text-xs font-mono text-zinc-400 hover:text-zinc-100 transition-colors px-3 py-1.5 rounded-xl bg-transparent border border-white/[0.08] hover:border-white/20 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>На главную</span>
@@ -41,34 +41,34 @@ export const App: React.FC = () => {
 
               <div 
                 onClick={() => setActiveTab("landing")}
-                className="hidden sm:flex items-center space-x-2 cursor-pointer pl-2"
+                className="hidden sm:flex items-center space-x-2 cursor-pointer pl-3"
               >
-                <span className="font-mono text-xs font-bold text-zinc-200">◆ GOST.DOCX</span>
-                <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                <span className="font-mono text-xs font-semibold tracking-wider text-zinc-200">◆ DOCX.AI</span>
+                <span className="text-[10px] font-mono text-zinc-500 bg-transparent px-1.5 py-0.5 rounded border border-white/[0.08]">
                   v2.4
                 </span>
               </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1.5 p-1 bg-transparent rounded-xl border border-white/[0.08]">
               <button
                 onClick={() => setActiveTab("wizard")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
                   activeTab === "wizard"
-                    ? "bg-zinc-800 text-white border-zinc-600 shadow-sm"
-                    : "bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border-zinc-800 hover:border-zinc-700"
+                    ? "bg-white text-zinc-950 font-semibold shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
                 }`}
               >
-                Генератор (Wizard)
+                Генератор
               </button>
 
               <button
                 onClick={() => setActiveTab("dashboard")}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all border ${
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
                   activeTab === "dashboard"
-                    ? "bg-zinc-800 text-white border-zinc-600 shadow-sm"
-                    : "bg-zinc-900/60 text-zinc-400 hover:text-zinc-200 border-zinc-800 hover:border-zinc-700"
+                    ? "bg-white text-zinc-950 font-semibold shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
                 }`}
               >
                 <User className="w-3.5 h-3.5" />
@@ -78,7 +78,7 @@ export const App: React.FC = () => {
           </header>
 
           {/* Main App Body */}
-          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 relative z-10">
             {activeTab === "dashboard" ? (
               <UserDashboard
                 onNewDocument={() => setActiveTab("wizard")}
@@ -86,12 +86,12 @@ export const App: React.FC = () => {
               />
             ) : (
               <div className="space-y-6">
-                <div className="text-center max-w-2xl mx-auto space-y-2 mb-8">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-100 tracking-tight">
-                    Генерация работы по ГОСТ 7.32-2017
+                <div className="text-center max-w-3xl mx-auto space-y-2 mb-8 sm:mb-10">
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold kast-gradient-title tracking-tight">
+                    Генерация работы
                   </h1>
-                  <p className="text-xs sm:text-sm text-zinc-400">
-                    Заполните вводные данные, скорректируйте структуру и соберите чистовой .docx файл
+                  <p className="text-xs sm:text-sm text-zinc-400 max-w-xl mx-auto leading-relaxed">
+                    Заполните параметры, настройте структуру и скачайте чистовой .docx документ
                   </p>
                 </div>
                 <WizardContainer />
@@ -100,8 +100,8 @@ export const App: React.FC = () => {
           </main>
 
           {/* App Footer */}
-          <footer className="border-t border-zinc-900 px-6 py-6 text-center text-xs font-mono text-zinc-600">
-            © 2026 GOST.DOCX Engine • Все права защищены.
+          <footer className="border-t border-white/[0.06] px-6 py-6 text-center text-xs font-mono text-zinc-600">
+            © 2026 DOCX AI Engine • Все права защищены.
           </footer>
         </div>
       )}

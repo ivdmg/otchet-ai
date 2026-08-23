@@ -90,9 +90,9 @@
   }
 }
 
-/* Minimalist Dark Theme Surfaces */
+/* Minimalist Contour-Only Surfaces */
 .dark-surface {
-  background-color: #141417;
+  background-color: transparent;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -102,7 +102,42 @@
 
 .dark-surface-hover:hover {
   border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 30px -5px rgba(255, 255, 255, 0.08);
+}
+
+/* Kast.xyz specific utilities */
+.kast-bg {
+  background-color: #060608;
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255, 255, 255, 0.05), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 120%, rgba(255, 255, 255, 0.02), transparent 70%);
+}
+
+.kast-surface {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kast-surface-subtle {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.kast-floating-glass {
+  background: rgba(13, 13, 16, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.kast-gradient-title {
+  background: linear-gradient(180deg, #FFFFFF 0%, #E4E4E7 40%, #71717A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.kast-hairline-border {
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ==========================================================================

@@ -149,19 +149,19 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6">
+    <div className="w-full max-w-6xl mx-auto space-y-6 font-sans">
       
       {/* Top Toolbar Bar */}
-      <div className="dark-surface p-4 rounded-2xl border border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-20 z-40 shadow-xl">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center justify-center">
+      <div className="bg-transparent p-4 sm:p-5 rounded-2xl border border-white/[0.08] flex flex-col md:flex-row items-center justify-between gap-4 sticky top-20 z-40">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-10 h-10 rounded-xl bg-transparent border border-white/[0.08] text-zinc-300 flex items-center justify-center">
             <Eye className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs sm:text-sm font-bold text-zinc-100 max-w-md truncate">{docTitle}</h3>
-            <p className="text-[11px] text-zinc-400 font-mono flex items-center space-x-1.5">
+            <h3 className="text-xs sm:text-sm font-semibold text-white max-w-md truncate">{docTitle}</h3>
+            <p className="text-[11px] text-zinc-400 font-mono flex items-center space-x-1.5 pt-0.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>ГОСТ 7.32-2017 • Поля 30/15/20/20 мм</span>
+              <span>Поля 30/15/20/20 мм</span>
             </p>
           </div>
         </div>
@@ -171,19 +171,19 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
           {/* Toggle Margin Lines Guide */}
           <button
             onClick={() => setShowMarginGuide(!showMarginGuide)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center space-x-1.5 transition-colors cursor-pointer ${
+            className={`px-3 py-2 rounded-xl border text-xs font-mono flex items-center space-x-1.5 transition-colors cursor-pointer ${
               showMarginGuide
-                ? "bg-zinc-800 border-zinc-600 text-zinc-100"
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                ? "bg-white text-zinc-950 font-semibold border-white"
+                : "bg-transparent border-white/[0.08] text-zinc-400 hover:text-zinc-200 hover:border-white/20"
             }`}
-            title="Показать / скрыть направляющие полей ГОСТ"
+            title="Показать / скрыть направляющие полей"
           >
             <Sliders className="w-3.5 h-3.5" />
             <span>Сетка полей</span>
           </button>
 
           {/* Zoom controls */}
-          <div className="flex items-center space-x-1 bg-zinc-900 px-2.5 py-1.5 rounded-xl border border-zinc-800 text-xs">
+          <div className="flex items-center space-x-1 bg-transparent px-3 py-1.5 rounded-xl border border-white/[0.08] text-xs">
             <button
               onClick={handleZoomOut}
               className="p-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
@@ -193,7 +193,7 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
             </button>
             <button
               onClick={resetZoom}
-              className="font-mono text-zinc-200 px-1.5 min-w-[40px] text-center hover:text-zinc-100 cursor-pointer text-xs"
+              className="font-mono text-zinc-200 px-2 min-w-[42px] text-center hover:text-white cursor-pointer text-xs"
               title="Сбросить масштаб"
             >
               {zoomPercent}%
@@ -208,7 +208,7 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
           </div>
 
           {/* Page switcher */}
-          <div className="flex items-center space-x-1.5 bg-zinc-900 px-2.5 py-1.5 rounded-xl border border-zinc-800 text-xs">
+          <div className="flex items-center space-x-2 bg-transparent px-3 py-1.5 rounded-xl border border-white/[0.08] text-xs">
             <button
               disabled={currentPage <= 1}
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -217,7 +217,7 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <span className="text-zinc-400 text-xs font-mono">
-              Стр. <strong className="text-zinc-100">{currentPage}</strong> / {totalPages}
+              Стр. <strong className="text-white">{currentPage}</strong> / {totalPages}
             </span>
             <button
               disabled={currentPage >= totalPages}
@@ -235,10 +235,10 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
               if (onDownloadDocx) {
                 onDownloadDocx();
               } else {
-                alert("Компиляция и скачивание файла .docx по ГОСТу...");
+                alert("Компиляция и скачивание файла .docx...");
               }
             }}
-            className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition-all shadow-sm hover:shadow-glow-cold flex items-center space-x-1.5 cursor-pointer active:scale-95"
+            className="px-5 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 font-semibold text-xs transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] flex items-center space-x-2 cursor-pointer active:scale-[0.99]"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Скачать .DOCX</span>
@@ -247,7 +247,7 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
       </div>
 
       {/* A4 Web DOCX Physical Paper Emulator Container */}
-      <div className="overflow-x-auto py-8 flex flex-col items-center justify-center bg-[#070709] rounded-2xl border border-zinc-900 shadow-inner min-h-[700px]">
+      <div className="overflow-x-auto py-8 flex flex-col items-center justify-center bg-transparent rounded-2xl border border-white/[0.08] shadow-inner min-h-[700px]">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentPage}
@@ -416,15 +416,15 @@ export const WebDocxViewerA4: React.FC<WebDocxViewerA4Props> = ({
         </AnimatePresence>
 
         {/* Page Thumbnail Slider Bar */}
-        <div className="mt-6 flex items-center space-x-2 bg-zinc-900/90 p-2 rounded-xl border border-zinc-800 shadow-lg">
+        <div className="mt-6 flex items-center space-x-2 bg-transparent p-2 rounded-xl border border-white/[0.08]">
           {mockPagesData.map((p) => (
             <button
               key={p.pageNumber}
               onClick={() => setCurrentPage(p.pageNumber)}
-              className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-semibold transition-all cursor-pointer ${
                 currentPage === p.pageNumber
-                  ? "bg-zinc-100 text-zinc-950 shadow-sm"
-                  : "bg-zinc-950 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80"
+                  ? "bg-white text-zinc-950 shadow-sm"
+                  : "bg-transparent text-zinc-400 hover:text-white border border-white/[0.06]"
               }`}
             >
               Стр. {p.pageNumber}
