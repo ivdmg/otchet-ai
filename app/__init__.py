@@ -1,1 +1,0 @@
-# AI GostDoc Application Package

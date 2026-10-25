@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 224 47% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 224 47% 7%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 238 83% 66%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 47% 14%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 223 47% 12%;
+    --muted-foreground: 215 20.2% 70%;
+
+    --accent: 250 84% 60%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 223 40% 16%;
+    --input: 223 40% 16%;
+    --ring: 238 83% 66%;
+
+    --radius: 0.85rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-[#060608] text-zinc-100 font-sans antialiased selection:bg-zinc-700 selection:text-white;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  code, pre, kbd, samp {
+    font-family: 'JetBrains Mono', 'Geist Mono', monospace;
+  }
+}
+
+.dark-surface {
+  background-color: rgba(18, 18, 24, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kast-bg {
+  background-color: #060608;
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255, 255, 255, 0.05), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 120%, rgba(255, 255, 255, 0.02), transparent 70%);
+}
+
+.kast-floating-glass {
+  background: rgba(13, 13, 16, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.kast-gradient-title {
+  background: linear-gradient(180deg, #FFFFFF 0%, #E4E4E7 40%, #71717A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glass-panel {
+  background: rgba(11, 15, 25, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.shadow-glow-silver {
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.25);
+}

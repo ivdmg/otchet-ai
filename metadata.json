@@ -1,0 +1,6 @@
+{
+  "name": "AI GostDoc",
+  "description": "Автоматическая генерация курсовых, ВКР и рефератов с безупречной версткой по ГОСТ 7.32-2017.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
