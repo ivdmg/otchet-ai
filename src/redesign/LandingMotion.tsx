@@ -100,7 +100,7 @@ export function ProcessSteps() {
         {
           number: "01",
           title: "Расскажите о задаче",
-          text: "Тема, объём и требования вашего вуза.",
+          text: "Обезличенная тема и тип работы.",
           Icon: FileText,
         },
         {

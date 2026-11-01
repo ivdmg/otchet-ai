@@ -75,3 +75,9 @@ tmp/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local private prototype state
+.local/
+!Tasks/
+!Tasks/**/*.md
+!docs/backend/*.md
