@@ -735,6 +735,10 @@ export default function Studio() {
   const [docId, setDocId] = useState<string | null>(() => sessionStorage.getItem('studio-delivery-document'));
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'login'|'register'|'verify'>('login');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
+  const [registeredId, setRegisteredId] = useState(() => sessionStorage.getItem('studio-pending-verification') || '');
   const [paymentMethod, setPaymentMethod] = useState<'cash'|'bonus'>('cash');
   const [approval, setApproval] = useState<any>(null);
   const [progress, setProgress] = useState(0);
@@ -848,6 +852,8 @@ export default function Studio() {
     if (job?.status==='failed') setError((statuses[d.order?.state] || 'Генерация не завершена')+': '+job.error);
   };
   useEffect(() => {
+    const requestedAuth = new URLSearchParams(location.search).get('auth');
+    if(requestedAuth==='login' || requestedAuth==='register') {setAuthMode(requestedAuth);setModal('login');}
     api.request<any>('/catalog').then(setCatalog).catch(e=>setError(errorText(e)));
     api.request<any>('/auth/me').then(async r=>{
       api.csrf=r.csrf_token;updateProfile({email:r.user.email,credits:0,referrals:[]});await refreshLibrary();
@@ -871,10 +877,37 @@ export default function Studio() {
   const input = () => ({topic:form.title,doc_type:form.type,pages:form.pages,chapters:form.chapters,
     subject:form.subject,notes:form.notes,anonymized:true,input_version:catalog?.version});
   const requireLogin = () => {if(!api.csrf){setModal('login');return false;}return true;};
-  const login = async (e:React.FormEvent) => {e.preventDefault();setBusy(true);try {
-    const r=await api.request<any>('/auth/login','POST',{email:authEmail,password:authPassword});
-    api.csrf=r.csrf_token;setAuthPassword('');updateProfile({email:r.user.email});await refreshLibrary();setModal(null);
-  }catch(e){setError(errorText(e));}finally{setBusy(false);}};
+  const switchAuth = (mode:'login'|'register'|'verify') => {setAuthMode(mode);setError('');setConfirmPassword('');};
+  const signIn = async () => {
+    const r=await api.request<any>('/auth/login','POST',{email:authEmail.trim(),password:authPassword});
+    api.csrf=r.csrf_token;setAuthPassword('');setConfirmPassword('');updateProfile({email:r.user.email});
+    setDocId(null);setActiveDoc(null);setChapters([]);setStep(1);setProgress(0);adoptedOutline.current=null;
+    sessionStorage.removeItem('studio-delivery-document');
+    const cleanAuthUrl = new URL(location.href);cleanAuthUrl.searchParams.delete('auth');
+    history.replaceState(null,'',cleanAuthUrl);
+    await refreshLibrary();setModal(null);setAuthMode('login');
+  };
+  const authenticate = async (e:React.FormEvent) => {
+    e.preventDefault();setError('');
+    if(authMode==='register' && authPassword!==confirmPassword){setError('Пароли не совпадают.');return;}
+    setBusy(true);
+    try {
+      if(authMode==='register') {
+        const r=await api.request<any>('/auth/register','POST',{email:authEmail.trim(),password:authPassword});
+        setRegisteredId(r.id);sessionStorage.setItem('studio-pending-verification',r.id);
+        setAuthMode('verify');setConfirmPassword('');setVerificationToken('');
+      } else if(authMode==='verify') {
+        await api.request('/auth/verify','POST',{token:verificationToken.trim()});
+        sessionStorage.removeItem('studio-pending-verification');setRegisteredId('');setVerificationToken('');
+        setAuthMode('login');
+        if(authPassword) await signIn();
+        else {setAuthMode('login');setNotice('Почта подтверждена. Войдите с вашим паролем.');}
+      } else await signIn();
+    } catch(e) {
+      setError(errorText(e));
+      if(e instanceof Error && e.message==='email_verification_required') setAuthMode('verify');
+    } finally {setBusy(false);}
+  };
   const start = (type: WorkType = "coursework", topic = "") => {
     if (page === "home") setSidebarOpen(matchMedia("(min-width: 901px)").matches);
     else if (matchMedia("(max-width: 700px)").matches) setSidebarOpen(false);
@@ -2078,12 +2111,21 @@ export default function Studio() {
         <p>Доступно {money(account?.available || 0)}. В резерве {money(account?.reserved || 0)}. Долг {money(account?.debt || 0)}.</p>
         <p>Кредиты начисляются за успешные рублёвые заказы и приглашения. Покупка, вывод и передача недоступны.</p>
       </Modal>
-      <Modal open={modal === 'login'} onClose={()=>setModal(null)} title="Войти в аккаунт">
-        <form onSubmit={login}>
-          <div className="field-group"><label htmlFor="login-email">Email</label><input id="login-email" type="email" autoComplete="username" required value={authEmail} onChange={e=>setAuthEmail(e.target.value)}/></div>
-          <div className="field-group"><label htmlFor="login-password">Пароль</label><input id="login-password" type="password" autoComplete="current-password" required value={authPassword} onChange={e=>setAuthPassword(e.target.value)}/></div>
+      <Modal open={modal === 'login'} onClose={()=>setModal(null)} title={authMode==='register'?'Создать аккаунт':authMode==='verify'?'Подтвердить почту':'Войти в аккаунт'}>
+        <form onSubmit={authenticate}>
+          {authMode!=='verify' ? <>
+            <div className="field-group"><label htmlFor="login-email">Email</label><input id="login-email" type="email" autoComplete="username" required maxLength={254} value={authEmail} onChange={e=>setAuthEmail(e.target.value)}/></div>
+            <div className="field-group"><label htmlFor="login-password">Пароль</label><input id="login-password" type="password" autoComplete={authMode==='register'?'new-password':'current-password'} required minLength={12} maxLength={128} value={authPassword} onChange={e=>setAuthPassword(e.target.value)}/>{authMode==='register' && <small>От 12 символов.</small>}</div>
+            {authMode==='register' && <div className="field-group"><label htmlFor="confirm-password">Повторите пароль</label><input id="confirm-password" type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/></div>}
+          </> : <>
+            <p className="modal-description">Аккаунт создан. Подтвердите почту, чтобы войти.</p>
+            <p className="quiet-note">В локальном тесте письма не отправляются. Код подтверждения сохранён в папке проекта{registeredId ? <>: <code style={{overflowWrap:'anywhere'}}>.local/private/mail/{registeredId}-verify.txt</code></> : ' в .local/private/mail/'}.</p>
+            <div className="field-group"><label htmlFor="verification-token">Код подтверждения</label><input id="verification-token" type="text" autoComplete="one-time-code" required minLength={20} maxLength={128} value={verificationToken} onChange={e=>setVerificationToken(e.target.value)}/></div>
+          </>}
           {error && <p role="alert" className="form-error">{error}</p>}
-          <ChromeButton type="submit" disabled={busy} className="button button-accent full-width">Войти</ChromeButton>
+          <ChromeButton type="submit" disabled={busy} className="button button-accent full-width">{busy?'Подождите…':authMode==='register'?'Зарегистрироваться':authMode==='verify'?'Подтвердить и войти':'Войти'}</ChromeButton>
+          <p className="modal-description">{authMode==='login' ? <>Нет аккаунта? <ChromeButton type="button" className="text-button" disabled={busy} onClick={()=>switchAuth('register')}>Зарегистрироваться</ChromeButton></> : <>Уже есть аккаунт? <ChromeButton type="button" className="text-button" disabled={busy} onClick={()=>switchAuth('login')}>Войти</ChromeButton></>}</p>
+          {authMode==='login' && registeredId && <ChromeButton type="button" className="text-button" disabled={busy} onClick={()=>switchAuth('verify')}>Ввести код подтверждения</ChromeButton>}
         </form>
       </Modal>
       <Modal open={modal === 'payment'} onClose={()=>setModal(null)} title="Оплатить и начать генерацию">
