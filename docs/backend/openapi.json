@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "AI GostDoc — closed personal sandbox",
+    "title": "AI GostDoc вЂ” closed personal sandbox",
     "version": "0.1.0"
   },
   "paths": {
@@ -302,6 +302,79 @@
         },
         "responses": {
           "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drafts": {
+      "post": {
+        "summary": "Save Draft",
+        "operationId": "save_draft_api_v1_drafts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Draft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/generate-plan": {
+      "post": {
+        "summary": "Generate Saved",
+        "operationId": "generate_saved_api_v1_documents__id__generate_plan_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -649,10 +722,10 @@
         }
       }
     },
-    "/api/v1/documents/{id}/download": {
+    "/api/v1/deliveries/{id}/{format}": {
       "get": {
-        "summary": "Download",
-        "operationId": "download_api_v1_documents__id__download_get",
+        "summary": "Delivery",
+        "operationId": "delivery_api_v1_deliveries__id___format__get",
         "parameters": [
           {
             "name": "id",
@@ -661,43 +734,25 @@
             "schema": {
               "type": "string",
               "title": "Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/documents/{id}/preview": {
-      "get": {
-        "summary": "Preview Document",
-        "operationId": "preview_document_api_v1_documents__id__preview_get",
-        "parameters": [
           {
-            "name": "id",
+            "name": "format",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Id"
+              "title": "Format"
+            }
+          },
+          {
+            "name": "inline",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Inline"
             }
           }
         ],
@@ -789,14 +844,47 @@
               "bonus"
             ],
             "title": "Method"
+          },
+          "approval_hash": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Approval Hash"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "method"
+          "method",
+          "approval_hash"
         ],
         "title": "Buy"
+      },
+      "Chapter": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 3,
+            "title": "Title"
+          },
+          "sections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Sections"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "sections"
+        ],
+        "title": "Chapter"
       },
       "Credentials": {
         "properties": {
@@ -842,6 +930,36 @@
             "type": "boolean",
             "const": true,
             "title": "Anonymized"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Pages",
+            "default": 10
+          },
+          "chapters": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 2.0,
+            "title": "Chapters",
+            "default": 2
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Subject",
+            "default": ""
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Notes",
+            "default": ""
+          },
+          "input_version": {
+            "type": "string",
+            "title": "Input Version",
+            "default": "personal-2026-11-v2"
           }
         },
         "additionalProperties": false,
@@ -882,20 +1000,20 @@
       },
       "Plan": {
         "properties": {
-          "sections": {
+          "chapters": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Chapter"
             },
             "type": "array",
-            "maxItems": 6,
+            "maxItems": 3,
             "minItems": 2,
-            "title": "Sections"
+            "title": "Chapters"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "sections"
+          "chapters"
         ],
         "title": "Plan"
       },

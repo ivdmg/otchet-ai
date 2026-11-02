@@ -71,13 +71,18 @@ def fail(id, token, exc):
             job.retry_at = now()+exc.retry_after
             return
         job.attempts += 1
-        if exc.retryable and job.attempts < MAX_ATTEMPTS and job.charged+CALL_RESERVE <= job.budget:
+        from .catalog import CATALOG
+        doc_type = db.get(Document,job.document_id).doc_type
+        attempts = min(MAX_ATTEMPTS,1+CATALOG[doc_type]['repair_attempts'])
+        if exc.retryable and job.attempts < attempts and job.charged+CALL_RESERVE <= job.budget:
             job.state = 'retry'
             job.retry_at = now()+max(exc.retry_after, min(300, 15*2**job.attempts))
             return
         job.state = 'failed'
         doc = db.get(Document, job.document_id)
         doc.state = 'failed'
+        doc.expires = now()+86400
+        doc.delivery_id = doc.delivery_id or uid()
         if job.order_id:
             order = db.scalar(select(Order).where(Order.id == job.order_id).with_for_update())
             order.state = 'failed'
@@ -85,7 +90,7 @@ def fail(id, token, exc):
                 bonus.change(db, order.user_id, 'release:'+order.id, 'release', order.amount, order.id)
                 order.state = 'bonus_released'
             elif order.receipt_status == 'simulated_no_charge':
-                order.state = 'test_failed'
+                payments.request_refund(db,order,order.amount-order.refunded,'technical:'+order.id)
             else:
                 payments.request_refund(db, order, order.amount-order.refunded, 'technical:'+order.id)
 
@@ -102,20 +107,26 @@ def run_one(provider=None):
             if job.kind == 'plan':
                 key, heading = 'plan', 'plan'
             else:
-                key, heading, _ = next((s for s in documents.pipeline(doc.approved_plan) if s[0] not in job.steps), (None,None,None))
+                key, heading, _ = next((s for s in documents.job_pipeline(job,doc) if s[0] not in job.steps), (None,None,None))
                 if key is None:
                     raise ProviderError('checkpoint_inconsistent')
             job.stage = key
-            if key not in ('validation','docx'):
+            if key not in ('validation','docx','pdf'):
                 reserve_call(db,job)
             topic, plan = doc.topic, doc.approved_plan or {}
             active_provider = provider or Groq(model=job.model)
             steps = dict(job.steps)
+            settings = dict(doc.settings)
         # No SQL transaction spans the AI request.
-        if key not in ('validation','docx'):
-            result, usage = active_provider.generate(topic,plan.get('sections',[]),heading)
+        if key not in ('validation','docx','pdf'):
+            if job.kind != 'plan':
+                settings = documents.generation_settings(settings,plan,key,job.units or None)
+            started = time.monotonic()
+            result, usage = active_provider.generate(topic,plan.get('chapters',[]),heading,settings=settings)
             if key == 'plan':
                 result = Plan.model_validate(result).model_dump()
+                if len(result['chapters']) != settings.get('chapters',2):
+                    raise ProviderError('chapter_count_mismatch',True,15)
             else:
                 result = documents.Content.model_validate(result).checked().model_dump()
             with DB.begin() as db:
@@ -123,7 +134,10 @@ def run_one(provider=None):
                 doc = db.get(Document,job.document_id)
                 job.charged -= max(0, CALL_RESERVE-usage)
                 job.usage += usage
+                job.metrics = {**job.metrics,key:{'tokens':usage,'seconds':round(time.monotonic()-started,3)}}
                 job.steps = {**job.steps,key:result}
+                # Latency is operational metadata; never copy generated text into logs.
+                job.heartbeat = now()
                 if key == 'plan':
                     doc.plan = result
                     doc.state = 'plan_ready'
@@ -136,30 +150,48 @@ def run_one(provider=None):
                 job.retry_at,job.lease_until,job.heartbeat = 0,0,now()
         elif key == 'validation':
             # Parse every saved section, then assemble and reopen an actual DOCX.
-            documents.build(doc,steps)
+            documents.build(doc,steps,job.units or None)
             with DB.begin() as db:
                 job = fenced(db,id,token)
                 job.steps = {**job.steps,'validation':{'checked':True,'sources_verified':False}}
                 job.state,job.stage,job.lease_until = 'queued','formatting',0
                 job.error = None
-        else:
-            data = documents.build(doc,steps)
+        elif key == 'docx':
+            data = documents.build(doc,steps,job.units or None)
             with DB.begin() as db:
                 job = fenced(db,id,token)
-                doc = db.scalar(select(Document).where(Document.id == job.document_id).with_for_update())
-                order = db.scalar(select(Order).where(Order.id == job.order_id).with_for_update())
+                doc = db.get(Document,job.document_id)
                 documents.store(doc,data,token)
-                # Re-read committed source bytes/path before setting completion.
                 documents.read(doc)
                 job.steps = {**job.steps,'docx':{'sha256':doc.file_hash,'bytes':len(data)}}
+                job.state,job.stage,job.lease_until = 'queued','pdf',0
+        else:
+            documents.convert_pdf(doc)
+            with DB.begin() as db:
+                job = fenced(db,id,token)
+                saved = db.scalar(select(Document).where(Document.id == job.document_id).with_for_update())
+                saved.pdf_path,saved.pdf_hash,saved.actual_pages = doc.pdf_path,doc.pdf_hash,doc.actual_pages
+                saved.delivery_id,saved.expires = uid(),now()+86400
+                documents.read(saved)
+                documents.read_pdf(saved)
+                order = db.scalar(select(Order).where(Order.id == job.order_id).with_for_update())
+                job.steps = {k:{'verified':True} for k in job.steps}
+                job.units = [{k:v for k,v in unit.items() if k != 'heading'} for unit in job.units]
+                job.steps = {**job.steps,'pdf':{'sha256':saved.pdf_hash,'actual_pages':saved.actual_pages}}
                 job.state,job.stage,job.lease_until,job.error = 'completed','completed',0,None
                 job.heartbeat = now()
-                doc.state = 'completed'
-                order.state = ('refunded' if order.refunded == order.amount else
+                saved.state = 'completed'
+                # Full outline/body are temporary; completed library is metadata only.
+                saved.plan = saved.approved_plan = None
+                prefix = 'simulated_' if order.receipt_status == 'simulated_no_charge' else ''
+                order.state = (prefix+'refund' if prefix and order.refunded == order.amount else
+                               prefix+'partial_refund' if prefix and order.refunded else
+                               'refunded' if order.refunded == order.amount else
                                'partially_refunded' if order.refunded else 'completed')
                 if order.method == 'bonus':
                     bonus.change(db,order.user_id,'capture:'+order.id,'capture',order.amount,order.id)
-                elif order.receipt_status != 'simulated_no_charge':
+                else:
+                    bonus.cashback(db,order)
                     bonus.qualify(db,order)
     except ProviderError as exc:
         fail(id,token,exc)

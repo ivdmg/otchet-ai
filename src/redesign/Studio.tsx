@@ -1,3 +1,4 @@
+import { PrototypeApi, errorText, money, statuses } from "./prototypeApi";
 import React, { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -80,6 +81,8 @@ type Work = {
   date: string;
   status: "ready" | "draft";
   chapters?: Chapter[];
+  actualPages?: number;
+  serverState?: string;
   subject?: string;
   notes?: string;
 };
@@ -97,11 +100,11 @@ const TYPES = [
     id: "abstract" as WorkType,
     label: "Реферат",
     price: 199,
-    pages: 15,
+    pages: 10,
     icon: FileText,
     caption: "Коротко и по делу",
     features: [
-      "До 15 страниц",
+      "До 10 страниц",
       "Титульный лист и источники",
       "Оформление по ГОСТу",
     ],
@@ -110,11 +113,11 @@ const TYPES = [
     id: "coursework" as WorkType,
     label: "Курсовая",
     price: 490,
-    pages: 30,
+    pages: 25,
     icon: BookOpen,
     caption: "От теории к практике",
     features: [
-      "До 40 страниц",
+      "До 25 страниц",
       "Таблицы, формулы и расчёты",
       "Редактирование структуры",
     ],
@@ -137,50 +140,24 @@ const initialForm: FormData = {
   title: "",
   subject: "",
   type: "coursework",
-  pages: 30,
+  pages: 25,
   chapters: 2,
   notes: "",
   file: null,
 };
 const demoTitle = "Искусственный интеллект в банковской сфере";
-const initialWorks: Work[] = [
-  {
-    id: "example-1",
-    title: demoTitle,
-    type: "coursework",
-    pages: 30,
-    date: "25 окт 2026",
-    status: "ready",
-  },
-  {
-    id: "example-2",
-    title: "Цифровая трансформация современного бизнеса",
-    type: "vkr",
-    pages: 60,
-    date: "23 окт 2026",
-    status: "ready",
-  },
-  {
-    id: "example-3",
-    title: "Психология принятия решений",
-    type: "abstract",
-    pages: 15,
-    date: "20 окт 2026",
-    status: "draft",
-  },
-];
 const FAQ = [
   [
     "Что я получу в итоге?",
-    "Редактируемый файл Word с титульным листом, содержанием, основным текстом и списком источников. Перед скачиванием можно посмотреть документ и изменить отдельные разделы.",
+    "Редактируемый файл Word с титульным листом, содержанием, основным текстом и списком источников. Word и PDF доступны 24 часа после завершения. Сохраните оба файла.",
   ],
   [
     "Можно использовать требования моего вуза?",
-    "Да. Прикрепите методичку в PDF или DOCX и добавьте пожелания в поле требований. Данные для титульного листа можно заполнить в профиле.",
+    "Да. Добавьте требования текстом. Загрузка методички пока недоступна. Данные для титульного листа можно заполнить в профиле.",
   ],
   [
     "Можно изменить план?",
-    "Да. Переименовывайте главы и параграфы, добавляйте разделы и меняйте их порядок. Одна полная перегенерация плана — бесплатно.",
+    "Да. Переименовывайте главы и параграфы, добавляйте разделы и меняйте их порядок. Один AI-план на черновик бесплатно; ручные правки бесплатны.",
   ],
   [
     "Что с оригинальностью?",
@@ -191,33 +168,6 @@ const FAQ = [
     "Нет. Вы выбираете тип работы и оплачиваете её один раз. Перед запуском генерации видны объём и стоимость.",
   ],
 ];
-function buildChapters(form: FormData, alternate = false): Chapter[] {
-  return Array.from({ length: form.chapters }, (_, i) => ({
-    title:
-      i === 0
-        ? `${alternate ? "Теоретические подходы к исследованию" : "Теоретические основы"} темы «${form.title.trim() || demoTitle}»`
-        : i === 1
-          ? alternate
-            ? "Оценка и направления развития"
-            : "Практический анализ и перспективы развития"
-          : "Рекомендации и оценка эффективности",
-    sections:
-      i === 0
-        ? [
-            "Основные понятия и подходы к исследованию",
-            "Современное состояние и тенденции развития",
-          ]
-        : i === 1
-          ? [
-              "Анализ практики и существующих решений",
-              "Проблемы и направления совершенствования",
-            ]
-          : [
-              "Разработка практических рекомендаций",
-              "Оценка предложенных решений",
-            ],
-  }));
-}
 function Brand({
   onClick,
   inverse = false,
@@ -289,6 +239,8 @@ function Paper({
   title?: string;
   page?: number;
   chapters?: Chapter[];
+  actualPages?: number;
+  serverState?: string;
   compact?: boolean;
   author?: string;
   university?: string;
@@ -344,7 +296,7 @@ function Paper({
             </p>
             {(chapters.length
               ? chapters
-              : buildChapters({ ...initialForm, title })
+              : [{title:"Теоретические основы",sections:["Основные понятия","Подходы к исследованию"]},{title:"Практический анализ",sections:["Анализ и рекомендации"]}]
             ).map((chapter, i) => (
               <React.Fragment key={i}>
                 <p>
@@ -774,22 +726,23 @@ export default function Studio() {
   const [openChapters, setOpenChapters] = useState<number[]>([]);
   useEffect(() => {if(step === 2) setOpenChapters([]);}, [step]);
   const [regenerated, setRegenerated] = useState(false);
-  const [works, setWorks] = useState<Work[]>(() => {
-    try {
-      return (
-        JSON.parse(localStorage.getItem("gost-studio-works") || "null") ||
-        initialWorks
-      );
-    } catch {
-      return initialWorks;
-    }
-  });
+  const [works, setWorks] = useState<Work[]>([]);
+  const [api] = useState(() => new PrototypeApi(() => {}));
+  const adoptedOutline = useRef<string | null>(null);
+  const [account, setAccount] = useState<any>(null);
+  const [catalog, setCatalog] = useState<any>(null);
+  const [activeDoc, setActiveDoc] = useState<any>(null);
+  const [docId, setDocId] = useState<string | null>(() => sessionStorage.getItem('studio-delivery-document'));
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash'|'bonus'>('cash');
+  const [approval, setApproval] = useState<any>(null);
   const [progress, setProgress] = useState(0);
   const [documentPage, setDocumentPage] = useState(1);
   const [zoom, setZoom] = useState(100);
   const [guides, setGuides] = useState(false);
   const [modal, setModal] = useState<
-    "download" | "topup" | "preview" | "regenerate" | "reset-password" | null
+    "login" | "payment" | "download" | "topup" | "preview" | "regenerate" | "reset-password" | null
   >(null);
   const [format, setFormat] = useState<"docx" | "pdf">("docx");
   const [busy, setBusy] = useState(false);
@@ -812,7 +765,8 @@ export default function Studio() {
     email: user.email,
     ...user.titleDefaults,
   });
-  const tier = TYPES.find((item) => item.id === form.type)!;
+  const selectedType = TYPES.find((item) => item.id === form.type)!;
+  const tier = {...selectedType,price:catalog?.types?.[form.type]?.price / 100 || selectedType.price};
   const title = form.title || demoTitle;
   useEffect(() => {
     document.title = "ГОСТ docx — от темы к готовой работе";
@@ -870,53 +824,67 @@ export default function Studio() {
       return () => clearTimeout(timer);
     }
   }, [notice]);
+  const refreshLibrary = async () => {
+    const result = await api.request<any>('/documents');
+    setWorks(result.items.filter((d:any) => d.state !== 'archived').map((d:any) => ({
+      id:d.id,title:d.topic,type:d.doc_type,pages:d.requested_pages || d.settings?.pages || 0,
+      actualPages:d.actual_pages,date:new Date(d.created*1000).toLocaleDateString('ru-RU'),
+      status:['draft','planning','plan_ready','approved'].includes(d.state) ? 'draft':'ready',
+      serverState:d.state,chapters:d.plan?.chapters,subject:d.settings?.subject,notes:d.settings?.notes,
+    })));
+    const balance = await api.request<any>('/referrals');
+    setAccount(balance);
+    updateProfile({credits:balance.available/100,referralSignups:balance.registered,
+      referralCode:balance.code,referralEarnedCredits:balance.history.filter((e:any)=>e.kind==='mature').reduce((n:number,e:any)=>n+e.amount,0)/100,referrals:[]});
+  };
+  const adopt = (d:any) => {
+    setActiveDoc(d);
+    if (d.settings?.pages) setForm({...initialForm,...d.settings,title:d.topic,type:d.doc_type,file:null});
+    if (d.plan?.chapters && adoptedOutline.current !== d.id) {setChapters(d.plan.chapters);adoptedOutline.current=d.id;setStep(2);}
+    const job = d.jobs.find((j:any) => j.kind==='document') || d.jobs.find((j:any)=>j.kind==='plan');
+    if (job?.kind==='document') {setStep(3);setProgress(job.percent);}
+
+    if(d.state==='expired') setError('Срок выдачи истёк. Файлы и текст удалены; сохранена только запись о работе.');
+    if (job?.status==='failed') setError((statuses[d.order?.state] || 'Генерация не завершена')+': '+job.error);
+  };
   useEffect(() => {
-    try {
-      localStorage.setItem("gost-studio-works", JSON.stringify(works));
-    } catch {
-      /* Browser storage may be unavailable. */
-    }
-  }, [works]);
+    api.request<any>('/catalog').then(setCatalog).catch(e=>setError(errorText(e)));
+    api.request<any>('/auth/me').then(async r=>{
+      api.csrf=r.csrf_token;updateProfile({email:r.user.email,credits:0,referrals:[]});await refreshLibrary();
+      if(docId) {adopt(await api.request('/documents/'+docId));setPage('create');}
+    }).catch(()=>updateProfile({credits:0,referrals:[]}));
+    const ref = new URLSearchParams(location.search).get('ref');
+    if(ref) api.request('/referrals/capture/'+encodeURIComponent(ref)).catch(()=>{});
+  },[]);
   useEffect(() => {
-    if (step !== 3 || page !== "create" || progress >= 100) return;
-    const timer = setInterval(
-      () => setProgress((p) => Math.min(100, p + 4)),
-      350,
-    );
-    return () => clearInterval(timer);
-  }, [step, page, progress >= 100]);
-  useEffect(() => {
-    if (step === 3 && progress === 100 && !savedGeneration.current) {
-      savedGeneration.current = true;
-      setWorks((items) => [
-        {
-          id: crypto.randomUUID(),
-          title,
-          type: form.type,
-          pages: form.pages,
-          chapters,
-          subject: form.subject,
-          notes: form.notes,
-          status: "ready",
-          date: new Date().toLocaleDateString("ru-RU", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-        },
-        ...items,
-      ]);
-    }
-  }, [progress === 100]);
+    if(!docId || !api.csrf) return;
+    let disposed=false;
+    const poll = async () => {try {
+      const d = await api.request<any>('/documents/'+docId);
+      if(disposed) return;
+      adopt(d);
+      if(['completed','failed','expired'].includes(d.state)) await refreshLibrary();
+    } catch(e) {if(!disposed) setError(errorText(e));}};
+    poll(); const timer=setInterval(poll,2500);
+    return ()=>{disposed=true;clearInterval(timer);};
+  },[docId,api.csrf]);
+  const input = () => ({topic:form.title,doc_type:form.type,pages:form.pages,chapters:form.chapters,
+    subject:form.subject,notes:form.notes,anonymized:true,input_version:catalog?.version});
+  const requireLogin = () => {if(!api.csrf){setModal('login');return false;}return true;};
+  const login = async (e:React.FormEvent) => {e.preventDefault();setBusy(true);try {
+    const r=await api.request<any>('/auth/login','POST',{email:authEmail,password:authPassword});
+    api.csrf=r.csrf_token;setAuthPassword('');updateProfile({email:r.user.email});await refreshLibrary();setModal(null);
+  }catch(e){setError(errorText(e));}finally{setBusy(false);}};
   const start = (type: WorkType = "coursework", topic = "") => {
     if (page === "home") setSidebarOpen(matchMedia("(min-width: 901px)").matches);
     else if (matchMedia("(max-width: 700px)").matches) setSidebarOpen(false);
+    setDocId(null);setActiveDoc(null);sessionStorage.removeItem("studio-delivery-document");
     savedGeneration.current = false;
     setForm({
       ...initialForm,
       type,
       title: topic,
-      pages: TYPES.find((t) => t.id === type)!.pages,
+      pages: catalog?.types?.[type]?.default_pages || TYPES.find((t) => t.id === type)!.pages,
     });
     setStep(1);
     setRegenerated(false);
@@ -932,91 +900,55 @@ export default function Studio() {
     else setPage(next);
   };
   const updateForm = (patch: Partial<FormData>) => {
+    if(docId){setDocId(null);setActiveDoc(null);sessionStorage.removeItem("studio-delivery-document");}
     setForm((old) => ({ ...old, ...patch }));
     if (patch.title !== undefined && patch.title.trim().length >= 5)
       setError("");
   };
-  const openWork = (work: Work) => {
-    savedGeneration.current = false;
-    setForm({
-      ...initialForm,
-      title: work.title,
-      type: work.type,
-      pages: work.pages,
-      subject: work.subject || "",
-      notes: work.notes || "",
-    });
-    setChapters(
-      work.chapters || buildChapters({ ...initialForm, title: work.title }),
-    );
-    setStep(work.status === "ready" ? 4 : 1);
-    setDocumentPage(1);
-    setPage("create");
-    setRewriteNote("");
+  const openWork = async (work:Work) => {
+    if(work.status!=='draft') return;
+    try {const d=await api.request<any>('/documents/'+work.id);setDocId(work.id);adopt(d);setStep(d.plan?2:1);setPage('create');}
+    catch(e){setError(errorText(e));}
   };
-  const saveDraft = () => {
-    if (!form.title.trim()) {
-      setNotice("Добавьте тему, чтобы сохранить черновик");
-      return;
-    }
-    setWorks((items) => [
-      {
-        id: crypto.randomUUID(),
-        title: form.title,
-        type: form.type,
-        pages: form.pages,
-        chapters,
-        subject: form.subject,
-        notes: form.notes,
-        date: "Только что",
-        status: "draft",
-      },
-      ...items,
-    ]);
-    setNotice("Черновик сохранён в моих работах");
+  const saveDraft = async () => {
+    if(!requireLogin()) return;
+    setBusy(true);try {
+      if(docId && ['plan_ready','approved'].includes(activeDoc?.state)) await api.request('/documents/'+docId+'/plan','PUT',{chapters});
+      else if(!docId){const d=await api.request<any>('/drafts','POST',input());setDocId(d.document_id);}
+      await refreshLibrary();setNotice('Черновик сохранён');
+    }catch(e){setError(errorText(e));}finally{setBusy(false);}
   };
-  const makePlan = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (form.title.trim().length < 5) {
-      setError("Опишите тему подробнее — хотя бы 5 символов.");
-      topicRef.current?.focus();
-      return;
-    }
-    setChapters(buildChapters(form));
-    setRegenerated(false);
-    setStep(2);
+  const makePlan = async (event:React.FormEvent) => {
+    event.preventDefault();if(!requireLogin()) return;setBusy(true);setError('');
+    try {
+      if(docId && activeDoc?.plan){setStep(2);return;}
+      const d=docId ? await api.request<any>('/documents/'+docId+'/generate-plan','POST') : await api.request<any>('/documents','POST',input());
+      setDocId(d.document_id);sessionStorage.setItem('studio-delivery-document',d.document_id);
+      setNotice('Составляем план. Можно дождаться на этой странице.');
+    }catch(e){setError(errorText(e));}finally{setBusy(false);}
+  };
+  const checkout = async () => {
+    setBusy(true);try {
+      await api.request('/documents/'+docId+'/plan','PUT',{chapters});
+      const q=await api.request<any>('/documents/'+docId+'/approve','POST');
+      setApproval(q);setForm(old=>({...old,chapters:chapters.length}));await refreshLibrary();setModal('payment');
+    }catch(e){setError(errorText(e));}finally{setBusy(false);}
+  };
+  const pay = async () => {
+    setBusy(true);try {
+      await api.request('/documents/'+docId+'/orders','POST',{method:paymentMethod,approval_hash:approval.approval_hash});
+      sessionStorage.setItem('studio-delivery-document',docId!);
+      setModal(null);setStep(3);adopt(await api.request('/documents/'+docId));
+    }catch(e){setError(errorText(e));}finally{setBusy(false);}
   };
   const editChapter = (i: number, patch: Partial<Chapter>) =>
     setChapters((items) =>
       items.map((item, j) => (j === i ? { ...item, ...patch } : item)),
     );
+  const deliveryUrl = (kind:string,inline=false) => `/api/v1/deliveries/${activeDoc?.delivery_id}/${kind}${inline?'?inline=true':''}`;
   const download = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const data = {
-        title,
-        docType: form.type,
-        authorName: user.titleDefaults.studentName,
-        institution: user.titleDefaults.university,
-        city: user.titleDefaults.city,
-        year: 2026,
-      };
-      if (format === "docx") {
-        const { exportGostDocx } = await import("../lib/docxExport");
-        await exportGostDocx(data);
-        setNotice("Документ Word скачан");
-      } else {
-        const { openPdfInBrowser } = await import("../lib/pdfExport");
-        openPdfInBrowser({ ...data, university: data.institution });
-        setNotice("Открыта версия для печати и сохранения в PDF");
-      }
-      setModal(null);
-    } catch {
-      setError("Не удалось скачать документ. Попробуйте ещё раз.");
-    } finally {
-      setBusy(false);
-    }
+    if(!activeDoc?.delivery_id) {setError('Срок выдачи истёк или файлы ещё не готовы');return;}
+    const a=document.createElement('a');a.href=deliveryUrl(format);a.download=`gostdoc.${format}`;a.click();setModal(null);
   };
   return (
     <ChromeTheme.Provider value={theme}>
@@ -1095,8 +1027,8 @@ export default function Studio() {
                     <small>кредитов</small>
                     <ChromeButton
                       className="icon-button"
-                      onClick={() => setModal("topup")}
-                      aria-label="Пополнить баланс"
+                      onClick={() => setModal(api.csrf ? "topup" : "login")}
+                      aria-label="О кредитах и балансе"
                     >
                       <Plus size={18} />
                     </ChromeButton>
@@ -1177,7 +1109,7 @@ export default function Studio() {
               </ChromeButton>
             </nav>
             <main
-              className={`workspace-main ${step === 4 && page === "create" ? "viewer-main" : ""}`}
+              className="workspace-main"
             >
               {page === "create" && (
                 <>
@@ -1199,7 +1131,7 @@ export default function Studio() {
 
                   </div>
                   <ol className="stepper">
-                    {["Задача", "План", "Генерация", "Результат"].map(
+                    {["Задача", "План", "Генерация"].map(
                       (label, i) => (
                         <li
                           key={label}
@@ -1212,7 +1144,7 @@ export default function Studio() {
                           }
                         >
                           <ChromeButton
-                            disabled={i + 1 >= step || step === 3}
+                            disabled={i + 1 >= step || step === 3 || !!activeDoc?.order}
                             onClick={() => setStep(i + 1)}
                             aria-current={step === i + 1 ? "step" : undefined}
                           >
@@ -1221,7 +1153,7 @@ export default function Studio() {
                             </span>
                             {label}
                           </ChromeButton>
-                          {i < 3 && <div />}
+                          {i < 2 && <div />}
                         </li>
                       ),
                     )}
@@ -1271,7 +1203,7 @@ export default function Studio() {
                                 onClick={() =>
                                   updateForm({
                                     type: item.id,
-                                    pages: item.pages,
+                                    pages: catalog?.types?.[item.id]?.default_pages || item.pages,
                                   })
                                 }
                               >
@@ -1296,7 +1228,7 @@ export default function Studio() {
                             }
                             placeholder="Например, влияние искусственного интеллекта на банковскую сферу"
                             rows={3}
-                            maxLength={500}
+                            maxLength={400}
                             aria-invalid={Boolean(error)}
                             aria-describedby={error ? "topic-error" : undefined}
                           />
@@ -1305,7 +1237,7 @@ export default function Studio() {
                             <span>
                               Чем точнее тема, тем полезнее результат.
                             </span>
-                            <span>{form.title.length}/500</span>
+                            <span>{form.title.length}/400</span>
                           </div>
                           {error && (
                             <p
@@ -1324,6 +1256,7 @@ export default function Studio() {
                           <div className="generator-input-effect"><FeaturedCard theme={theme}>
                           <input
                             id="work-subject"
+                            maxLength={200}
                             placeholder="Например, экономика"
                             value={form.subject}
                             onChange={(e) =>
@@ -1340,10 +1273,10 @@ export default function Studio() {
                               <ChromeButton
                                 type="button"
                                 aria-label="Уменьшить объём"
-                                disabled={form.pages <= 5}
+                                disabled={form.pages <= 1}
                                 onClick={() =>
                                   updateForm({
-                                    pages: Math.max(5, form.pages - 5),
+                                    pages: Math.max(1, form.pages - 1),
                                   })
                                 }
                               >
@@ -1352,14 +1285,14 @@ export default function Studio() {
                               <input
                                 id="work-pages"
                                 type="number"
-                                min={5}
-                                max={80}
+                                min={1}
+                                max={catalog?.types?.[form.type]?.max_pages || 10}
                                 value={form.pages}
                                 onChange={(e) =>
                                   updateForm({
                                     pages: Math.min(
-                                      80,
-                                      Math.max(5, Number(e.target.value)),
+                                      catalog?.types?.[form.type]?.max_pages || 10,
+                                      Math.max(1, Math.trunc(Number(e.target.value))),
                                     ),
                                   })
                                 }
@@ -1367,10 +1300,10 @@ export default function Studio() {
                               <ChromeButton
                                 type="button"
                                 aria-label="Увеличить объём"
-                                disabled={form.pages >= 80}
+                                disabled={form.pages >= (catalog?.types?.[form.type]?.max_pages || 10)}
                                 onClick={() =>
                                   updateForm({
-                                    pages: Math.min(80, form.pages + 5),
+                                    pages: Math.min(catalog?.types?.[form.type]?.max_pages || 10, form.pages + 1),
                                   })
                                 }
                               >
@@ -1401,14 +1334,14 @@ export default function Studio() {
                         </div>
                         <details className="additional-settings">
                           <summary>
-                            <SlidersHorizontal size={17} /> Требования и
-                            методичка <ChevronDown size={16} />
+                            <SlidersHorizontal size={17} /> Требования <ChevronDown size={16} />
                           </summary>
                           <div className="field-group">
                             <label htmlFor="work-notes">Ваши пожелания</label>
                             <div className="generator-input-effect"><FeaturedCard theme={theme}>
                             <textarea
                               id="work-notes"
+                              maxLength={4000}
                               rows={3}
                               value={form.notes}
                               onChange={(e) =>
@@ -1417,45 +1350,15 @@ export default function Studio() {
                               placeholder="Что важно учесть в работе?"
                             />                            </FeaturedCard></div>
                           </div>
-                          <label className="upload-area">
-                            <Upload size={23} />
-                            <b>
-                              {form.file
-                                ? form.file.name
-                                : "Прикрепить методичку"}
-                            </b>
-                            <span>PDF или DOCX · до 10 МБ</span>
-                            <input
-                              type="file"
-                              accept=".pdf,.docx"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file && file.size > 10 * 1024 * 1024) {
-                                  setNotice(
-                                    "Максимальный размер файла — 10 МБ",
-                                  );
-                                  e.target.value = "";
-                                } else updateForm({ file: file || null });
-                              }}
-                            />
-                          </label>
-                          {form.file && (
-                            <ChromeButton
-                              type="button"
-                              className="text-button"
-                              onClick={() => updateForm({ file: null })}
-                            >
-                              Удалить файл <X size={14} />
-                            </ChromeButton>
-                          )}
                         </details>
                         <div className="form-action">
                           <ChromeButton type="button" className="button button-outline draft-action" onClick={saveDraft}>Сохранить черновик <Download size={17}/></ChromeButton>
                           <ChromeButton
                             className="button button-accent"
+                            disabled={busy || activeDoc?.state === "planning"}
                             type="submit"
                           >
-                            Составить план <ArrowRight size={17} />
+                            {busy || activeDoc?.state === "planning" ? "Составляем AI-план…" : "Составить план бесплатно"} <ArrowRight size={17} />
                           </ChromeButton>
                         </div>
                       </div>
@@ -1510,7 +1413,7 @@ export default function Studio() {
                                 <ChromeButton
                                   className="icon-button"
                                   aria-label={`Удалить главу ${i + 1}`}
-                                  disabled={chapters.length <= 1}
+                                  disabled={chapters.length <= 2}
                                   onClick={() =>
                                     setChapters((items) =>
                                       items.filter((_, j) => i !== j),
@@ -1571,6 +1474,7 @@ export default function Studio() {
                         ))}
                         <ChromeButton
                           className="add-chapter"
+                          disabled={chapters.length >= 3}
                           onClick={() =>
                             setChapters((items) => [
                               ...items,
@@ -1598,12 +1502,10 @@ export default function Studio() {
                           </ChromeButton>
                           <ChromeButton
                             className="button button-accent"
-                            onClick={() => {
-                              setProgress(0);
-                              setStep(3);
-                            }}
+                            disabled={busy}
+                            onClick={checkout}
                           >
-                            Утвердить план <ArrowRight size={17} />
+                            Оплатить и начать генерацию <ArrowRight size={17} />
                           </ChromeButton>
                         </div>
                       </div>
@@ -1621,28 +1523,7 @@ export default function Studio() {
                           нужные параграфы, уберите лишнее.
                         </p>
                         <div className="aside-divider" />
-                        <ChromeButton
-                          className="button button-outline"
-                          disabled={regenerated}
-                          onClick={() => {
-                            setChapters(buildChapters(form, true));
-                            setRegenerated(true);
-                            setNotice("Новый вариант плана готов");
-                          }}
-                        >
-                          <RefreshCw size={16} />
-                          {regenerated
-                            ? "Перегенерация использована"
-                            : "Другой вариант плана"}
-                        </ChromeButton>
-                        <small>
-                          {regenerated
-                            ? "Вы по-прежнему можете редактировать план."
-                            : "Одна перегенерация бесплатно"}
-                        </small>
-                        <div className="quiet-note">
-                          Предпросмотр сценария. План составляется локально.
-                        </div>
+                        <small>Один AI-план на черновик. Ручные правки бесплатны.</small>
                       </aside>
                     </div>
                   )}
@@ -1659,7 +1540,7 @@ export default function Studio() {
                         <div className="eyebrow">
                           {progress === 100
                             ? "МОЖНО ОТКРЫВАТЬ"
-                            : "СОБИРАЕМ ДЕМОНСТРАЦИОННЫЙ ДОКУМЕНТ"}
+                            : "СОБИРАЕМ ВАШ ДОКУМЕНТ"}
                         </div>
                         <h2>
                           {progress === 100
@@ -1710,148 +1591,15 @@ export default function Studio() {
                         {progress === 100 ? (
                           <div className="generation-actions"><ChromeButton
                             className="button button-accent"
-                            onClick={() => {
-                              setDocumentPage(1);
-                              setStep(4);
-                            }}
+                            onClick={() => window.open(deliveryUrl("pdf",true),"_blank","noopener")}
                           >
-                            Посмотреть работу <ArrowRight size={17} />
+                            Посмотреть PDF <ArrowRight size={17} />
                           </ChromeButton><ChromeButton className="button button-outline" onClick={() => setModal("download")}><Download size={17}/> Скачать работу</ChromeButton></div>
                         ) : (
                           <p className="muted small">
-                            Можно немного выдохнуть. Мы почти закончили.
+                            {statuses[activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.status] || "В очереди"} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.current_section} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.completed_units || 0}/{activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.total_units || 0}
                           </p>
                         )}
-                      </div>
-                    </div>
-                  )}
-                  {step === 4 && (
-                    <div className="document-workspace">
-                      <div className="document-toolbar">
-                        <div>
-                          <FileText size={19} />
-                          <span>{title}</span>
-                          <span className="ready-label">
-                            <Check size={13} /> Готово
-                          </span>
-                        </div>
-                        <ChromeButton
-                          className="button button-accent"
-                          onClick={() => setModal("download")}
-                        >
-                          <Download size={16} /> Скачать
-                        </ChromeButton>
-                      </div>
-                      <div className="document-layout">
-                        <aside className="document-outline">
-                          <div className="eyebrow">СОДЕРЖАНИЕ</div>
-                          {[
-                            "Титульный лист",
-                            "Содержание",
-                            "Введение",
-                            "Глава 1. Теория",
-                            "Глава 2. Практика",
-                          ].map((label, i) => (
-                            <ChromeButton
-                              key={label}
-                              className={documentPage === i + 1 ? "active" : ""}
-                              onClick={() => setDocumentPage(i + 1)}
-                            >
-                              <span>{String(i + 1).padStart(2, "0")}</span>
-                              {label}
-                            </ChromeButton>
-                          ))}
-                          <div className="document-properties">
-                            <span>ПАРАМЕТРЫ</span>
-                            <p>А4 · Times New Roman</p>
-                            <p>14 пт · интервал 1,5</p>
-                            <p>ГОСТ 7.32–2017</p>
-                          </div>
-                          <ChromeButton
-                            className="text-button"
-                            onClick={() => setModal("regenerate")}
-                          >
-                            <RefreshCw size={15} /> Уточнить раздел
-                          </ChromeButton>
-                        </aside>
-                        <div className="document-canvas">
-                          <div className="viewer-controls">
-                            <div className="zoom-control">
-                              <ChromeButton
-                                aria-label="Уменьшить масштаб"
-                                disabled={zoom <= 70}
-                                onClick={() =>
-                                  setZoom((z) => Math.max(70, z - 10))
-                                }
-                              >
-                                <Minus size={15} />
-                              </ChromeButton>
-                              <span>{zoom}%</span>
-                              <ChromeButton
-                                aria-label="Увеличить масштаб"
-                                disabled={zoom >= 130}
-                                onClick={() =>
-                                  setZoom((z) => Math.min(130, z + 10))
-                                }
-                              >
-                                <Plus size={15} />
-                              </ChromeButton>
-                            </div>
-                            <ChromeButton
-                              className={`text-button ${guides ? "accent-text" : ""}`}
-                              aria-pressed={guides}
-                              onClick={() => setGuides(!guides)}
-                            >
-                              <SlidersHorizontal size={15} /> Поля
-                            </ChromeButton>
-                          </div>
-                          <div
-                            className="paper-stage"
-                            style={
-                              {
-                                "--paper-zoom": zoom / 100,
-                              } as React.CSSProperties
-                            }
-                          >
-                            <Paper
-                              title={title}
-                              page={documentPage}
-                              chapters={chapters}
-                              author={user.titleDefaults.studentName}
-                              university={user.titleDefaults.university}
-                              margins={guides}
-                              type={form.type}
-                            />
-                          </div>
-                          {rewriteNote && (
-                            <p className="rewrite-note">
-                              <Check size={15} /> Пожелание сохранено:{" "}
-                              {rewriteNote}
-                            </p>
-                          )}
-                          <div className="page-pagination">
-                            <ChromeButton
-                              className="icon-button"
-                              aria-label="Предыдущая страница"
-                              disabled={documentPage === 1}
-                              onClick={() => setDocumentPage((p) => p - 1)}
-                            >
-                              <ChevronLeft size={18} />
-                            </ChromeButton>
-                            <span>
-                              Страница <b>{documentPage}</b> из 5{" "}
-                              <small>· демопример</small>
-                            </span>
-                            <ChromeButton
-                              className="icon-button"
-                              aria-label="Следующая страница"
-                              disabled={documentPage === 5}
-                              onClick={() => setDocumentPage((p) => p + 1)}
-                            >
-                              <ChevronRight size={18} />
-                            </ChromeButton>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -1863,7 +1611,7 @@ export default function Studio() {
                     <div>
                       <div className="eyebrow">ЛИЧНАЯ БИБЛИОТЕКА</div>
                       <h1>Ваши работы.</h1>
-                      <p>Всё написанное — в одном месте.</p>
+                      <p>Черновики и журнал завершённых работ.</p>
                     </div>
                     <ChromeButton
                       className="button button-accent"
@@ -1880,7 +1628,7 @@ export default function Studio() {
                       </strong>
                     </div>
                     <div>
-                      <span>Готовы к скачиванию</span>
+                      <span>Завершены</span>
                       <strong>
                         {works
                           .filter((w) => w.status === "ready")
@@ -1896,7 +1644,7 @@ export default function Studio() {
                       </strong>
                       <ChromeButton
                         className="text-button"
-                        onClick={() => setModal("topup")}
+                        onClick={() => setModal(api.csrf ? "topup" : "login")}
                       >
                         Пополнить <ArrowUpRight size={15} />
                       </ChromeButton>
@@ -1950,6 +1698,7 @@ export default function Studio() {
                           <div className="work-row" key={work.id}>
                             <ChromeButton
                               className="work-title"
+                              disabled={work.status === "ready"}
                               onClick={() => openWork(work)}
                             >
                               <span
@@ -1965,34 +1714,35 @@ export default function Studio() {
                                 </small>
                               </span>
                             </ChromeButton>
-                            <span className="work-meta">{work.pages} стр.</span>
+                            <span className="work-meta">{work.pages ? `${work.pages} стр. заказано` : "Объём не указан"}{work.actualPages ? ` / ${work.actualPages} в PDF` : ""}</span>
                             <span className="work-meta">{work.date}</span>
                             <span className={`work-status ${work.status}`}>
                               <span />
-                              {work.status === "ready" ? "Готово" : "Черновик"}
+                              {statuses[work.serverState || ""] || "Черновик"}
                             </span>
-                            <div className="work-actions">
+                            {work.status === "draft" && <div className="work-actions">
                               <ChromeButton
                                 className="icon-button"
                                 aria-label={`Открыть ${work.title}`}
-                                onClick={() => openWork(work)}
+                              onClick={() => openWork(work)}
                               >
                                 <ArrowUpRight size={20} />
                               </ChromeButton>
                               <ChromeButton
                                 className="icon-button"
                                 aria-label={`Удалить ${work.title}`}
-                                onClick={() => {
+                                onClick={async () => {
+                                  try {await api.request("/documents/"+work.id,"DELETE");}catch(e){setError(errorText(e));return;}
                                   setDeletedWork(work);
                                   setWorks((items) =>
                                     items.filter((item) => item.id !== work.id),
                                   );
-                                  setNotice("Работа удалена");
+                                  setNotice("Черновик архивирован");
                                 }}
                               >
                                 <Trash2 size={15} />
                               </ChromeButton>
-                            </div>
+                            </div>}
                           </div>
                         );
                       })}
@@ -2168,13 +1918,13 @@ export default function Studio() {
                       </h2>
                       <p>Ваша персональная ссылка для друзей.</p>
                       <div className="referral-link">
-                        <code>gostdoc.ai/ref/{user.referralCode}</code>
+                        <code>{location.origin}/?ref={user.referralCode}</code>
                         <ChromeButton
                           className="button button-ink"
                           onClick={async () => {
                             try {
                               await navigator.clipboard.writeText(
-                                `https://gostdoc.ai/ref/${user.referralCode}`,
+                                `${location.origin}/?ref=${user.referralCode}`,
                               );
                               setNotice("Ссылка скопирована");
                             } catch {
@@ -2188,7 +1938,7 @@ export default function Studio() {
                         </ChromeButton>
                       </div>
                       <small>
-                        Демо-статистика. Реферальная система ещё не подключена.
+                        Первая успешная рублёвая покупка друга: до {money((account?.standard_price_hundredths || 19900)/5)} кредитов, максимум 20% цены. Ожидание 14 дней. Старые приглашения сохраняют условия кампании.
                       </small>
                     </div>
                     <div className="referral-stat">
@@ -2200,9 +1950,9 @@ export default function Studio() {
                   <div className="referral-history">
                     <div className="section-topline">
                       <h2>История приглашений</h2>
-                      <span className="eyebrow">ДЕМО-СТАТИСТИКА</span>
+                      <span className="eyebrow">ЖУРНАЛ</span>
                     </div>
-                    {user.referrals.map((ref) => (
+                    {(account?.history || []).map((entry:any) => ({id:entry.operation_id,friendName:entry.kind,docTitle:"",date:new Date(entry.created*1000).toLocaleDateString("ru-RU"),rewardCredits:entry.amount/100})).map((ref:any) => (
                       <div className="referral-history-row" key={ref.id}>
                         <span className="avatar">{ref.friendName[0]}</span>
                         <div>
@@ -2217,6 +1967,8 @@ export default function Studio() {
                 </>
               )}
             </main>
+            {error && step !== 1 && <p className="form-error" role="alert">{error}</p>}
+            {activeDoc?.delivery_id && step === 3 && <p className="quiet-note">Сохраните оба файла до {new Date(activeDoc.expires*1000).toLocaleString("ru-RU")}. Заказано {form.pages}, фактически {activeDoc.actual_pages} стр. в PDF.</p>}
             <footer className="workspace-footer">
               <span>ГОСТ docx © 2026</span>
               <span>Большая работа начинается с маленького шага.</span>
@@ -2278,7 +2030,7 @@ export default function Studio() {
         <div className="download-options">
           {[
             ["docx", "Word", "Редактируйте и дополняйте"],
-            ["pdf", "PDF / печать", "Сохраните через окно печати"],
+            ["pdf", "PDF", "Готовый серверный PDF"],
           ].map(([id, label, description]) => (
             <ChromeButton
               key={id}
@@ -2298,7 +2050,7 @@ export default function Studio() {
           ))}
         </div>
         <div className="quiet-note">
-          В демо-версии скачивается пример оформления с вашей темой.
+          Сохраните Word и PDF. Выдача действует 24 часа после завершения.
         </div>
         {error && (
           <p className="form-error" role="alert">
@@ -2318,46 +2070,33 @@ export default function Studio() {
           {busy
             ? "Готовим файл…"
             : format === "pdf"
-              ? "Открыть для печати"
+              ? "Скачать .pdf"
               : "Скачать .docx"}
         </ChromeButton>
       </Modal>
-      <Modal
-        open={modal === "topup"}
-        onClose={() => setModal(null)}
-        title="Больше возможностей"
-      >
-        <p className="modal-description">
-          На балансе {user.credits} кредитов. Выберите пакет.
-        </p>
-        <div className="topup-options">
-          {[5, 10, 25].map((count) => (
-            <ChromeButton
-              key={count}
-              className={topup === count ? "selected" : ""}
-              aria-pressed={topup === count}
-              onClick={() => setTopup(count)}
-            >
-              <strong>{count}</strong>
-              <span>кредитов</span>
-              <b>{count * 10} ₽</b>
-            </ChromeButton>
-          ))}
+      <Modal open={modal === 'topup'} onClose={()=>setModal(null)} title="Ваши кредиты">
+        <p>Доступно {money(account?.available || 0)}. В резерве {money(account?.reserved || 0)}. Долг {money(account?.debt || 0)}.</p>
+        <p>Кредиты начисляются за успешные рублёвые заказы и приглашения. Покупка, вывод и передача недоступны.</p>
+      </Modal>
+      <Modal open={modal === 'login'} onClose={()=>setModal(null)} title="Войти в аккаунт">
+        <form onSubmit={login}>
+          <div className="field-group"><label htmlFor="login-email">Email</label><input id="login-email" type="email" autoComplete="username" required value={authEmail} onChange={e=>setAuthEmail(e.target.value)}/></div>
+          <div className="field-group"><label htmlFor="login-password">Пароль</label><input id="login-password" type="password" autoComplete="current-password" required value={authPassword} onChange={e=>setAuthPassword(e.target.value)}/></div>
+          {error && <p role="alert" className="form-error">{error}</p>}
+          <ChromeButton type="submit" disabled={busy} className="button button-accent full-width">Войти</ChromeButton>
+        </form>
+      </Modal>
+      <Modal open={modal === 'payment'} onClose={()=>setModal(null)} title="Оплатить и начать генерацию">
+        <p>{tier.label} · {form.pages} стр. · {money(approval?.price_kopecks || 0)} ₽</p>
+        <p>Баланс: {money(account?.available || 0)} кредитов</p>
+        <p className="quiet-note">Тестовая оплата: деньги не списываются</p>
+        <div className="download-options">
+          <ChromeButton className={paymentMethod==='cash'?'selected':''} onClick={()=>setPaymentMethod('cash')}>Рубли — {money(approval?.price_kopecks || 0)} ₽</ChromeButton>
+          <ChromeButton className={paymentMethod==='bonus'?'selected':''} disabled={!!account?.debt || (account?.available || 0)<(approval?.price_kopecks || 0)} onClick={()=>setPaymentMethod('bonus')}>Кредиты — {money(approval?.price_kopecks || 0)}</ChromeButton>
         </div>
-        <div className="quiet-note">
-          Демонстрация интерфейса. Платёжный сервис не подключён, деньги не
-          списываются.
-        </div>
-        <ChromeButton
-          className="button button-ink full-width"
-          onClick={() => {
-            useUserStore.getState().addCredits(topup);
-            setModal(null);
-            setNotice(`Демо-баланс пополнен на ${topup} кредитов`);
-          }}
-        >
-          Пополнить демо-баланс <ArrowRight size={17} />
-        </ChromeButton>
+        {(account?.available || 0)<(approval?.price_kopecks || 0) && <p>Не хватает {money((approval?.price_kopecks || 0)-(account?.available || 0))} кредитов</p>}
+        {error && <p role="alert" className="form-error">{error}</p>}
+        <ChromeButton className="button button-accent full-width" disabled={busy} onClick={pay}>{busy?'Запускаем…':'Подтвердить и начать'}</ChromeButton>
       </Modal>
       <Modal
         open={modal === "regenerate"}

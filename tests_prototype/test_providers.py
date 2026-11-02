@@ -16,7 +16,7 @@ def test_groq_wire_and_json_no_personal_fields():
     assert usage == 200 and len(result['sections']) == 2
 
 
-@pytest.mark.parametrize('status,code,retryable',[(429,'ai_rate_limit',True),(503,'ai_unavailable',True),(401,'ai_auth',False),(400,'ai_request_rejected',False)])
+@pytest.mark.parametrize('status,code,retryable',[(403,'ai_access_denied',False),(429,'ai_rate_limit',True),(503,'ai_unavailable',True),(401,'ai_auth',False),(400,'ai_request_rejected',False)])
 def test_groq_safe_errors(status,code,retryable):
     def respond(r):
         return httpx.Response(status,headers={'retry-after':'90'},text='private-provider-body')

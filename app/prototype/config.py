@@ -20,7 +20,15 @@ class Config(BaseSettings):
     JOB_BUDGET: int = 24000
     MOCK_PAYMENTS: bool = False
     AI_MAX_ATTEMPTS: int = 5
-    MAX_DOCS: int = 20
+    MAX_DOCS: int = 200
+    PLAN_HOURLY: int = 3
+    PLAN_DAILY: int = 5
+    REFERRAL_STANDARD_PRICE: int = 19900
+    REFERRAL_VERSION: str = "personal-mock-v2"
+    CASHBACK_BPS: int = 500
+    CASHBACK_VERSION: str = "cashback-5-v1"
+    PDF_CONVERTER: str = "word"
+    SOFFICE: str = "C:/Program Files/LibreOffice/program/soffice.exe"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     def validate_private(self):

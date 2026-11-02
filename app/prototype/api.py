@@ -1,4 +1,6 @@
 import hmac
+import hashlib
+import json
 import secrets
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -9,15 +11,16 @@ from sqlalchemy.exc import IntegrityError
 from .auth import (current_user, digest, get_db, issue_token, owned,
                    password_hash, password_ok)
 from .config import cfg
+from .catalog import CATALOG, VERSION, budget
 from .db import counter, limit
 from .models import (Attribution, AuthToken, BonusAccount, BonusEntry, DB, Document,
                      Job, Order, Refund, Reward, Session, User, now)
 from .schemas import Buy, Credentials, Draft, EmailInput, Plan, Register, Reset, TokenInput
 from . import bonus, documents, payments
-from .providers import ProviderError, YooKassa
+from .providers import ProviderError, YooKassa, Groq
 
 
-app = FastAPI(title='AI GostDoc — closed personal sandbox',version='0.1.0',
+app = FastAPI(title='AI GostDoc вЂ” closed personal sandbox',version='0.1.0',
               openapi_url='/api/v1/openapi.json')
 
 
@@ -93,7 +96,7 @@ def register(body: Register, request: Request, db=Depends(get_db)):
     db.flush()
     db.add(BonusAccount(user_id=user.id))
     if inviter:
-        db.add(Attribution(invited=user.id,inviter=inviter.id))
+        db.add(Attribution(invited=user.id,inviter=inviter.id,standard_price=cfg.REFERRAL_STANDARD_PRICE,terms=cfg.REFERRAL_VERSION))
     issue_token(db,user,'verify')
     db.commit()
     return {**profile(user),'mail_mode':'private_local_sink'}
@@ -180,14 +183,16 @@ def referral_cookie(code: str,request: Request,response: Response,db=Depends(get
 
 @app.get('/api/v1/catalog')
 def catalog():
-    return {'mode':'sandbox','price_kopecks':30000,'bonus_hundredths':30000,'currency':'RUB',
-            'retention_days':90,'types':['abstract','coursework','vkr'],'max_sections':6,
-            'scope':'short_personal_test','sources_automatically_verified':False,'mail_mode':'private_local_sink', 'payment_mode':'personal_mock' if cfg.MOCK_PAYMENTS else 'yukassa_test'}
+    return {'mode':'sandbox','version':VERSION,'types':CATALOG,'chapters':[2,3], 'retention_hours':24,
+            'front_matter_included':True,'cashback_bps':cfg.CASHBACK_BPS,
+            'payment_mode':'mock' if cfg.MOCK_PAYMENTS else 'disabled'}
 
 
 @app.post('/api/v1/quote')
 def quote(body: Draft):
-    return {'price_kopecks':30000,'bonus_hundredths':30000,'campaign':'sandbox-v1','storage_days':90}
+    return {'version':VERSION,'price_kopecks':CATALOG[body.doc_type]['price'],
+            'bonus_hundredths':CATALOG[body.doc_type]['price'],'settings':body.model_dump()}
+
 
 
 def reserve_budget(db,amount):
@@ -201,16 +206,45 @@ def job_view(job,doc):
     return {'id':job.id,'document_id':job.document_id,'order_id':job.order_id,'kind':job.kind,'provider':'groq','model':job.model,
             'status':job.state,**documents.progress(job,doc),'heartbeat':job.heartbeat,
             'retry_at':job.retry_at or None,'error':job.error,'attempts':job.attempts,
-            'tokens':{'reported':job.usage,'charged_conservative':job.charged,'budget':job.budget}}
+            'metrics':job.metrics,'tokens':{'reported':job.usage,'charged_conservative':job.charged,'budget':job.budget}}
 
 
 def doc_view(db,doc):
     order = db.scalar(select(Order).where(Order.document_id == doc.id))
     jobs = db.scalars(select(Job).where(Job.document_id == doc.id).order_by(Job.created)).all()
     return {'id':doc.id,'topic':doc.topic,'doc_type':doc.doc_type,'state':doc.state,'plan':doc.plan,
-            'approved_plan':doc.approved_plan,'created':doc.created,'expires':doc.expires,
+            'approved_plan':doc.approved_plan,'settings':doc.settings,'approval_hash':doc.approval_hash,
+            'actual_pages':doc.actual_pages,'created':doc.created,'expires':doc.expires,
             'order':order_view(db,order) if order else None,'jobs':[job_view(j,doc) for j in jobs],
-            'download_url':f'/api/v1/documents/{doc.id}/download' if doc.file_hash and doc.expires > now() else None}
+            'delivery_id':doc.delivery_id if doc.file_hash and doc.expires and doc.expires > now() else None}
+
+
+@app.post('/api/v1/drafts',status_code=201)
+def save_draft(body: Draft,user=Depends(current_user),db=Depends(get_db)):
+    doc = Document(user_id=user.id,topic=body.topic,doc_type=body.doc_type,settings=body.model_dump(),state='draft')
+    db.add(doc)
+    db.commit()
+    return {'document_id':doc.id}
+
+
+@app.post('/api/v1/documents/{id}/generate-plan',status_code=202)
+def generate_saved(id: str,request: Request,user=Depends(current_user),db=Depends(get_db)):
+    doc = owned(db,Document,id,user)
+    db.refresh(doc,with_for_update=True)
+    if doc.state != 'draft':
+        raise HTTPException(409,'initial_plan_only')
+    Draft.model_validate(doc.settings)
+    counter(db,'draft-admission')
+    if not limit(db,f'plans-hour:{user.id}:{now()//3600}',cfg.PLAN_HOURLY):
+        raise HTTPException(429,'plan_hourly_limit')
+    if not limit(db,f'plans:{user.id}:{now()//86400}',cfg.PLAN_DAILY):
+        raise HTTPException(429,'plan_daily_limit')
+    reserve_budget(db,7000)
+    doc.state = 'planning'
+    job = Job(document_id=id,kind='plan',budget=7000)
+    db.add(job)
+    db.commit()
+    return {'document_id':id,'job_id':job.id}
 
 
 @app.post('/api/v1/documents',status_code=202)
@@ -224,10 +258,12 @@ def create_draft(body: Draft,request: Request,user=Depends(current_user),db=Depe
     if db.scalar(select(func.count()).select_from(Document)) >= cfg.MAX_DOCS:
         raise HTTPException(409,'personal_storage_limit')
     rate(db,request,'plan',10)
-    if not limit(db,f'plans:{user.id}:{now()//86400}',5):
+    if not limit(db,f'plans-hour:{user.id}:{now()//3600}',cfg.PLAN_HOURLY):
+        raise HTTPException(429,'plan_hourly_limit')
+    if not limit(db,f'plans:{user.id}:{now()//86400}',cfg.PLAN_DAILY):
         raise HTTPException(429,'plan_daily_limit')
     reserve_budget(db,7000)
-    doc = Document(user_id=user.id,topic=body.topic,doc_type=body.doc_type)
+    doc = Document(user_id=user.id,topic=body.topic,doc_type=body.doc_type,settings=body.model_dump())
     db.add(doc)
     db.flush()
     job = Job(document_id=doc.id,kind='plan',budget=7000)
@@ -240,8 +276,10 @@ def create_draft(body: Draft,request: Request,user=Depends(current_user),db=Depe
 def edit_plan(id: str,body: Plan,user=Depends(current_user),db=Depends(get_db)):
     doc = owned(db,Document,id,user)
     db.refresh(doc,with_for_update=True)
-    if doc.state != 'plan_ready':
+    if doc.state not in ('plan_ready','approved'):
         raise HTTPException(409,'plan_not_editable')
+    doc.settings = {**doc.settings,'chapters':len(body.chapters)}
+    doc.state,doc.approved_plan,doc.approval_hash = 'plan_ready',None,None
     doc.plan = body.model_dump()
     db.commit()
     return {'plan':doc.plan}
@@ -257,6 +295,8 @@ def archive_draft(id: str,user=Depends(current_user),db=Depends(get_db)):
     for j in jobs:
         j.state,j.stage,j.attempt_token,j.lease_until = 'cancelled','cancelled',None,0
     doc.state = 'archived'
+    doc.expires = now()+86400
+    doc.delivery_id = doc.delivery_id or secrets.token_urlsafe(24)
     db.commit()
     return {'archived':True,'ai_budget_not_refunded':True}
 
@@ -266,20 +306,21 @@ def approve(id: str,user=Depends(current_user),db=Depends(get_db)):
     doc = owned(db,Document,id,user)
     db.refresh(doc,with_for_update=True)
     if doc.state == 'approved':
-        return {'approved_plan':doc.approved_plan}
+        return {'approved_plan':doc.approved_plan,'approval_hash':doc.approval_hash,'price_kopecks':CATALOG[doc.doc_type]['price']}
     if doc.state != 'plan_ready':
         raise HTTPException(409,'plan_not_ready')
     doc.approved_plan = Plan.model_validate(doc.plan).model_dump()
+    doc.approval_hash = hashlib.sha256(json.dumps({'settings':doc.settings,'plan':doc.approved_plan,'catalog':VERSION},sort_keys=True,ensure_ascii=False).encode()).hexdigest()
     doc.state = 'approved'
     db.commit()
-    return {'approved_plan':doc.approved_plan}
+    return {'approved_plan':doc.approved_plan,'approval_hash':doc.approval_hash,'price_kopecks':CATALOG[doc.doc_type]['price']}
 
 
 def order_view(db,o):
     job = db.scalar(select(Job).where(Job.order_id == o.id))
     refunds = db.scalars(select(Refund).where(Refund.order_id == o.id)).all()
     return {'id':o.id,'document_id':o.document_id,'method':o.method,'state':o.state,'amount_kopecks':o.amount,
-            'sandbox':True,'payment_mode':'personal_mock' if o.receipt_status == 'simulated_no_charge' else 'yukassa_test','checkout_url':o.checkout_url,'job_id':job.id if job else None,
+            'sandbox':True,'cash_charged':False if o.receipt_status == 'simulated_no_charge' else None,'payment_mode':'personal_mock' if o.receipt_status == 'simulated_no_charge' else 'yukassa_test','checkout_url':o.checkout_url,'job_id':job.id if job else None,
             'refunded_kopecks':o.refunded,'receipt_status':o.receipt_status,
             'refunds':[{'id':r.id,'state':r.state,'amount_kopecks':r.amount,'error':r.error,'retry_at':r.retry_at} for r in refunds]}
 
@@ -295,10 +336,18 @@ def buy(id: str,body: Buy,user=Depends(current_user),db=Depends(get_db)):
         return order_view(db,existing)
     if doc.state != 'approved':
         raise HTTPException(409,'approval_required')
+    if body.approval_hash != doc.approval_hash:
+        raise HTTPException(409,'stale_approval')
     if body.method == 'cash' and not cfg.MOCK_PAYMENTS and (not cfg.YUKASSA_SHOP_ID or not cfg.YUKASSA_SECRET_KEY.startswith('test_')):
         raise HTTPException(503,'yukassa_test_credentials_required')
-    reserve_budget(db,cfg.JOB_BUDGET)
-    order = Order(document_id=id,user_id=user.id,method=body.method)
+    settings = Draft.model_validate(doc.settings)
+    tokens = budget(doc.doc_type,settings.pages)
+    # Pure local token preflight: reject oversized inputs before payment/reserve.
+    for key,heading,_ in documents.pipeline(doc.approved_plan,doc.settings)[:-3]:
+        Groq().generate(doc.topic,doc.approved_plan['chapters'],heading,
+                        settings=documents.generation_settings(doc.settings,doc.approved_plan,key),preflight=True)
+    reserve_budget(db,tokens)
+    order = Order(document_id=id,user_id=user.id,method=body.method,amount=CATALOG[doc.doc_type]['price'],ai_budget=tokens)
     db.add(order)
     db.flush()
     if body.method == 'cash' and cfg.MOCK_PAYMENTS:
@@ -332,8 +381,11 @@ def get_job(id: str,user=Depends(current_user),db=Depends(get_db)):
 
 @app.get('/api/v1/documents')
 def library(user=Depends(current_user),db=Depends(get_db)):
-    return {'items':[doc_view(db,d) for d in db.scalars(select(Document).where(Document.user_id == user.id)
-                                                     .order_by(Document.created.desc()))]}
+    items = db.scalars(select(Document).where(Document.user_id == user.id).order_by(Document.created.desc())).all()
+    return {'items':[{'id':d.id,'topic':d.topic,'doc_type':d.doc_type,'state':d.state,
+                     'created':d.created,'requested_pages':d.settings.get('pages'), 'actual_pages':d.actual_pages,
+                     **({'settings':d.settings,'plan':d.plan} if d.state in ('draft','planning','plan_ready','approved') else {})}
+                    for d in items]}
 
 
 @app.get('/api/v1/documents/{id}')
@@ -341,32 +393,25 @@ def get_document(id: str,user=Depends(current_user),db=Depends(get_db)):
     return doc_view(db,owned(db,Document,id,user))
 
 
-@app.get('/api/v1/documents/{id}/download')
-def download(id: str,user=Depends(current_user),db=Depends(get_db)):
-    doc = owned(db,Document,id,user)
+@app.get('/api/v1/deliveries/{id}/{format}')
+def delivery(id: str,format: str,inline: bool=False,user=Depends(current_user),db=Depends(get_db)):
+    doc = db.scalar(select(Document).where(Document.delivery_id == id,Document.user_id == user.id))
+    if not doc:
+        raise HTTPException(404,'not_found')
+    if not doc.expires or doc.expires <= now():
+        documents.expire(db)
+        db.commit()
+        raise HTTPException(410,'delivery_expired')
+    if format not in ('pdf','docx'):
+        raise HTTPException(404,'unknown_format')
     try:
-        data = documents.read(doc)
-    except FileNotFoundError:
-        raise HTTPException(404,'file_missing_or_expired') from None
-    except ValueError:
-        raise HTTPException(503,'file_integrity_error') from None
-    return Response(data,media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    headers={'Content-Disposition':f'attachment; filename="gostdoc-{doc.id}.docx"'})
+        data = documents.read_pdf(doc) if format == 'pdf' else documents.read(doc)
+    except (FileNotFoundError,ValueError):
+        raise HTTPException(503,'artifact_integrity_error') from None
+    return Response(data,media_type='application/pdf' if format=='pdf' else
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    headers={'Content-Disposition':f'{"inline" if inline and format=="pdf" else "attachment"}; filename="gostdoc.{format}"'})
 
-
-@app.get('/api/v1/documents/{id}/preview')
-def preview_document(id: str,user=Depends(current_user),db=Depends(get_db)):
-    import io
-    import docx as word
-    document = owned(db,Document,id,user)
-    try:
-        data = documents.read(document)
-    except FileNotFoundError:
-        raise HTTPException(404,'file_missing_or_expired') from None
-    except ValueError:
-        raise HTTPException(503,'file_integrity_error') from None
-    output = word.Document(io.BytesIO(data))
-    return {'paragraphs':[{'text':p.text,'style':p.style.name} for p in output.paragraphs]}
 
 
 @app.get('/api/v1/referrals')
@@ -375,13 +420,13 @@ def referrals(user=Depends(current_user),db=Depends(get_db)):
     a = db.get(BonusAccount,user.id)
     rewards = db.scalars(select(Reward).where(Reward.inviter == user.id)).all()
     entries = db.scalars(select(BonusEntry).where(BonusEntry.user_id == user.id).order_by(BonusEntry.created)).all()
-    return {'code':user.referral_code,'link':'/?ref='+user.referral_code,'terms':'sandbox-v1',
-            'standard_price_hundredths':30000,'registered':db.scalar(select(func.count()).select_from(Attribution).where(Attribution.inviter == user.id)),
+    return {'code':user.referral_code,'link':'/?ref='+user.referral_code,'terms':cfg.REFERRAL_VERSION,
+            'standard_price_hundredths':cfg.REFERRAL_STANDARD_PRICE,'registered':db.scalar(select(func.count()).select_from(Attribution).where(Attribution.inviter == user.id)),
             'qualified':sum(r.amount > 0 for r in rewards), 'maturation_days':14,
             'available':a.available,'reserved':a.reserved,'debt':a.debt,
             'pending':sum(r.amount for r in rewards if r.state in ('pending','held')),
             'held':sum(r.amount for r in rewards if r.state == 'held'),
-            'remaining_to_standard':max(0,30000-a.available), 'units':'credit_hundredths',
+            'remaining_to_standard':max(0,cfg.REFERRAL_STANDARD_PRICE-a.available), 'units':'credit_hundredths',
             'history':[{'operation_id':e.operation_id,'kind':e.kind,'amount':e.amount,'created':e.created,
                         'available_delta':e.available_delta,'reserved_delta':e.reserved_delta,'debt_delta':e.debt_delta} for e in entries]}
 

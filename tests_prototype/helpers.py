@@ -17,10 +17,10 @@ class TestAI:
     __test__ = False
     def __init__(self):
         self.calls = []
-    def generate(self,topic,headings,step):
+    def generate(self,topic,headings,step,settings=None):
         self.calls.append(step)
         if step == 'plan':
-            return {'sections':['Теоретические основы','Практическое применение']},400
+            return {'chapters':[{'title':'Теоретические основы','sections':['Основные понятия']},{'title':'Практическое применение','sections':['Методы проверки']}]},400
         return {'paragraphs':[step+': '+PARAGRAPH],'table':None},600
 
 
@@ -73,7 +73,7 @@ def approved(client):
 
 def create_cash(client):
     id = approved(client)
-    r = client.post(f'/api/v1/documents/{id}/orders',json={'method':'cash'})
+    r = client.post(f'/api/v1/documents/{id}/orders',json={'method':'cash','approval_hash':client.get(f'/api/v1/documents/{id}').json()['approval_hash']})
     assert r.status_code == 202,r.text
     return id,r.json()['id']
 

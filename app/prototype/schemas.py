@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 import re
 
 
@@ -38,21 +38,39 @@ class Draft(Input):
     topic: str = Field(min_length=8, max_length=400)
     doc_type: Literal['abstract', 'coursework', 'vkr'] = 'abstract'
     anonymized: Literal[True]
+    pages: int = Field(default=10, ge=1, strict=True)
+    chapters: int = Field(default=2, ge=2, le=3, strict=True)
+    subject: str = Field(default='', max_length=200)
+    notes: str = Field(default='', max_length=4000)
+    input_version: str = 'personal-2026-11-v2'
     _safe = field_validator('topic')(safe_text)
+
+    @model_validator(mode='after')
+    def valid_volume(self):
+        from .catalog import CATALOG, VERSION
+        if self.pages > CATALOG[self.doc_type]['max_pages'] or self.input_version != VERSION:
+            raise ValueError('invalid_catalog_volume_or_version')
+        return self
+
+
+class Chapter(Input):
+    title: str = Field(min_length=3, max_length=160)
+    sections: list[str] = Field(min_length=1, max_length=4)
+    _safe = field_validator('title')(safe_text)
 
 
 class Plan(Input):
-    sections: list[str] = Field(min_length=2, max_length=6)
+    chapters: list[Chapter] = Field(min_length=2, max_length=3)
 
-    @field_validator('sections')
-    @classmethod
-    def check(cls, sections):
-        if len(set(sections)) != len(sections):
-            raise ValueError('Duplicate headings')
-        if any(not 3 <= len(x.strip()) <= 160 for x in sections):
-            raise ValueError('Heading length: 3..160')
-        return [safe_text(x) for x in sections]
+    @model_validator(mode='after')
+    def check(self):
+        headings = [s for c in self.chapters for s in c.sections]
+        if any(not 3 <= len(s.strip()) <= 160 for s in headings) or len(set(headings)) != len(headings):
+            raise ValueError('invalid_or_duplicate_headings')
+        for s in headings: safe_text(s)
+        return self
 
 
 class Buy(Input):
     method: Literal['cash', 'bonus']
+    approval_hash: str = Field(min_length=64, max_length=64)

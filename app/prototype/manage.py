@@ -45,6 +45,8 @@ def main():
     sub = parser.add_subparsers(dest='command',required=True)
     sub.add_parser('status')
     sub.add_parser('seed')
+    recover = sub.add_parser('recover-converter')
+    recover.add_argument('--job',required=True)
     sub.add_parser('mature-seed')
     sub.add_parser('reset-test-db')
     export = sub.add_parser('openapi')
@@ -102,11 +104,11 @@ def main():
     elif args.command == 'refund':
         with DB.begin() as db:
             o = db.scalar(select(Order).where(Order.id == args.order).with_for_update())
-            if not o or o.method != 'cash' or not o.payment_id or o.state not in ('completed','partially_refunded','refund_pending','refund_attention','failed'):
+            if not o or o.method != 'cash' or (not o.payment_id and o.receipt_status != 'simulated_no_charge') or o.state not in ('completed','partially_refunded','refund_pending','refund_attention','failed','simulated_refund','simulated_partial_refund'):
                 raise SystemExit('Verified cash order in refundable state required')
             r = payments.request_refund(db,o,args.amount_kopecks,args.operation_id)
             db.flush()
-            print('Sandbox refund queued: '+r.id+'; run worker and check status, not confirmed yet.')
+            print(('Simulated refund recorded, no money charged: ' if r.state == 'simulated' else 'Sandbox refund queued, await reconciliation: ')+r.id)
     elif args.command == 'mail-path':
         with DB() as db:
             user = db.scalar(select(User).where(User.email == args.email.lower()))
@@ -125,65 +127,60 @@ def main():
                 db.add(BonusEntry(operation_id=op,user_id=r.inviter,order_id=r.order_id,
                        kind='review_'+args.decision,amount=0,available_delta=0,reserved_delta=0,debt_delta=0))
         print('Pending reward review saved; refunds remain independent and are never blocked.')
+    elif args.command == 'recover-converter':
+        from .models import Document
+        if not cfg.MOCK_PAYMENTS: raise SystemExit('Personal mock environment required')
+        with DB.begin() as db:
+            job = db.scalar(select(Job).where(Job.id == args.job).with_for_update())
+            if not job or job.kind != 'document' or job.state != 'failed' or job.stage != 'pdf' or 'docx' not in job.steps:
+                raise SystemExit('Only a terminal PDF failure with existing live checkpoints can be repaired')
+            doc = db.get(Document,job.document_id)
+            order = db.get(Order,job.order_id)
+            if order.receipt_status != 'simulated_no_charge' or not doc.expires or doc.expires <= now():
+                raise SystemExit('Only unexpired mock checkpoints; never regenerate expired metadata')
+            if order.refunded < order.amount:
+                payments.request_refund(db,order,order.amount-order.refunded,'converter-repair-refund:'+order.id)
+            job.steps = {k:v for k,v in job.steps.items() if k not in ('validation','docx','pdf')}
+            job.metrics = {**job.metrics,'operator_converter_repair':{'time':now(),'money_changed':False}}
+            job.state,job.stage,job.error,job.attempts = 'queued','validation',None,0
+            job.retry_at,job.lease_until,job.attempt_token = 0,0,None
+            doc.state = 'generating'
+        print('Converter-only recovery queued; AI sections preserved; existing simulated refund stays unchanged.')
     elif args.command == 'backup':
         destination = Path(args.directory).resolve()
         if destination.exists():
             raise SystemExit('Use a NEW backup directory; existing data is never overwritten')
         destination.mkdir(parents=True)
-        url = __import__('sqlalchemy').engine.make_url(cfg.DATABASE_URL)
-        # libpq reads password from child environment, never from argv or logs.
-        import os
-        env = {**os.environ,'PGPASSWORD':url.password or ''}
-        subprocess.run([str(Path(args.pg_bin)/'pg_dump.exe'),'-h',url.host,'-p',str(url.port or 5432),
-                        '-U',url.username,'-d',url.database,'-Fc','-f',str(destination/'database.dump')],env=env,check=True)
-        source = cfg.DATA_DIR/'documents'
-        if source.exists():
-            shutil.copytree(source,destination/'documents')
-        (destination/'manifest.json').write_text(json.dumps({'created':now(),'storage':cfg.STORAGE,
-             'restore_original_document_dir':str(source.resolve()),'note':'Private local snapshot, not encrypted/offsite production backup'}),encoding='utf-8')
-        print('Private local backup complete: '+str(destination))
+        from .retention import metadata_backup
+        metadata_backup(destination)
+        print('Metadata-only backup complete; no temporary documents or checkpoints: '+str(destination))
     elif args.command == 'restore-test':
-        import os
         import re
         import psycopg
         from psycopg import sql
         from sqlalchemy import create_engine
-        from sqlalchemy.orm import Session
-        from .models import Document
-        from .documents import read
         target = args.target_database
         if not re.fullmatch(r'[a-z][a-z0-9_]{1,45}_restore_test',target):
             raise SystemExit('Target must be a NEW name ending in _restore_test')
         source = Path(args.directory).resolve()
-        if not (source/'database.dump').is_file() or not (source/'manifest.json').is_file():
-            raise SystemExit('Backup manifest/database.dump required')
+        if not (source/'metadata.json').is_file():
+            raise SystemExit('Only v2 metadata backups supported. Legacy body backups require owner migration preview and expiry cleanup.')
+        payload = json.loads((source/'metadata.json').read_text(encoding='utf-8'))
+        if payload.get('version') != 2: raise SystemExit('Unsupported backup version')
         url = __import__('sqlalchemy').engine.make_url(cfg.DATABASE_URL)
-        connection = dict(host=url.host,port=url.port or 5432,user=url.username,password=url.password or '',dbname='postgres')
-        with psycopg.connect(**connection,autocommit=True) as admin:
+        with psycopg.connect(host=url.host,port=url.port or 5432,user=url.username,password=url.password or '',dbname='postgres',autocommit=True) as admin:
             if admin.execute('SELECT 1 FROM pg_database WHERE datname=%s',(target,)).fetchone():
-                raise SystemExit('Target already exists; refusing to overwrite any database')
+                raise SystemExit('Target already exists; refusing overwrite')
             admin.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(target)))
-        env = {**os.environ,'PGPASSWORD':url.password or ''}
-        subprocess.run([str(Path(args.pg_bin)/'pg_restore.exe'),'-h',url.host,'-p',str(url.port or 5432),
-                        '-U',url.username,'-d',target,'--no-owner','--exit-on-error',str(source/'database.dump')],env=env,check=True)
-        folder = cfg.DATA_DIR/'restores'/target/'documents'
-        if (source/'documents').exists():
-            shutil.copytree(source/'documents',folder)
         restored = create_engine(url.set(database=target))
-        count = 0
-        with Session(restored) as db:
-            for doc in db.scalars(select(Document).where(Document.file_hash.is_not(None))):
-                if doc.file_path:
-                    doc.file_path = str((folder/Path(doc.file_path).name).resolve())
-                # Reopen/check hash even if the 90-day download deadline passed.
-                old_expiry = doc.expires
-                doc.expires = max(doc.expires or 0,now()+60)
-                read(doc)
-                doc.expires = old_expiry
-                count += 1
-            db.commit()
+        Base.metadata.create_all(restored)
+        with restored.begin() as conn:
+            for table in Base.metadata.sorted_tables:
+                rows = payload['tables'].get(table.name,[])
+                if rows: conn.execute(table.insert(),rows)
         restored.dispose()
-        print(f'Restored into new isolated DB {target}; {count} DOCX hashes/OpenXML verified. Source DB unchanged.')
+        print('Restored metadata into isolated DB; no delivery resurrected. Active orders require reconciliation, never automatic recharge.')
+
 
 
 if __name__ == '__main__':

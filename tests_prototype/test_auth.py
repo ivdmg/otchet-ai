@@ -7,7 +7,7 @@ from .helpers import signup, PASSWORD, approved
 def test_private_auth_csrf_reset_owner(client):
     assert client.get('/api/v1/catalog',headers={'X-Prototype-Key':'wrong'}).status_code == 403
     assert client.get('/api/v1/catalog').json()['mode'] == 'sandbox'
-    assert client.post('/api/v1/quote',json={'topic':'Обезличенная учебная тема','doc_type':'abstract','anonymized':True}).json()['price_kopecks'] == 30000
+    assert client.post('/api/v1/quote',json={'topic':'Обезличенная учебная тема','doc_type':'abstract','anonymized':True}).json()['price_kopecks'] == 19900
     assert client.get('/api/v1/documents').status_code == 401
     assert client.get('/api/v1/referrals').status_code == 401
     assert client.post('/api/v1/quote',headers={'Origin':'https://evil.example'},json={'topic':'Обезличенная учебная тема','doc_type':'abstract','anonymized':True}).status_code == 403

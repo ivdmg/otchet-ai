@@ -1,5 +1,25 @@
 # Локальный закрытый AI GostDoc
 
+## Текущая эксплуатация Studio v2 — 02.11.2026
+
+Этот раздел и API-CONTRACT.md заменяют исторические инструкции ниже. URL: http://127.0.0.1:5173/ . Запуск существующего PostgreSQL: `pg_ctl -D .local/pgdata -l .local/postgres.log -o "-h 127.0.0.1 -p 55432" -w start` из PostgreSQL16/bin. Затем `venv/Scripts/python.exe -m alembic upgrade head`, `./scripts/prototype-start.ps1`, `npm.cmd run dev`. Не выполнять initdb/reset поверх существующих данных. Stale process record обрабатывает prototype-stop.ps1 с проверкой PID/executable.
+
+Проверки текущего контракта: `venv/Scripts/python.exe -m pytest tests_prototype/test_studio_v2.py tests_prototype/test_providers.py tests_prototype/test_auth.py -q`, `npm.cmd run typecheck`, `npm.cmd run build`. Legacy sections/300руб/90days не являются контрактом v2. Seed verified accounts имеют нулевой баланс; credentials только .local/private/seed-accounts.json. Секреты .env не выводить и не переносить в browser.
+
+MOCK_PAYMENTS=true только private development/test. Не включать ЮKassa/production. Конвертер PDF_CONVERTER=word использует установленный Word2016: только generated DOCX, macros disabled, новый WINWORD PID, watchdog110s/512MiB, subprocess120s, файлы5/20MiB. Уже открытые документы владельца не трогаются. Опциональный SOFFICE требует отдельной приёмки. Word/PDF проходят hash/text/table/page verification.
+
+Новые managed файлы .local/private/documents имеют TTL24h от completion; worker sweeper при каждом tick/старте, active jobs исключены. Terminal failure также24h. Metadata manifests: .local/private/review-2026-11-02; Downloads — пользовательские копии. Старые unmanaged данные/backup не удалять массово.
+
+Новый `manage backup --directory NEW_DIR` сохраняет metadata.json/manifest.json без generated body/files/checkpoints. `manage restore-test --directory DIR --target-database NEW_restore_test` восстанавливает только в новую БД; active jobs требуют reconciliation, никакого автоматического списания. Legacy backup с body требует owner preview/срока удаления, старый restore отклоняется. Mock ledger не переносить в production.
+
+`manage refund --order UUID --amount-kopecks N --operation-id UNIQUE` для mock фиксирует simulated refund без provider calls. `manage recover-converter --job UUID` разрешает повтор только converter/formatting неистёкшего mock PDF failure, сохраняет sections и simulated refund. `manage mature-seed` применяет test clock только к earned referral rewards, не выдаёт gift balance.
+
+Внешний блокер текущей live-приёмки: Groq generation и GET /openai/v1/models возвращают HTTP403 «Access denied. Please check your network settings.». Ключ присутствует; не объявлять его невалидным/квоту исчерпанной без доказательств. Не менять сетевую безопасность и не включать платный fallback. Исторически проверены3→4 и10→11стр.;25/80 live и точное попадание в объём не приняты. После восстановления доступа повторить браузерный сценарий и длинные объёмы.
+
+---
+
+## Исторические инструкции (не применять при противоречии v2)
+
 > Обновление требований 02.11.2026: единственный действующий план — [Tasks/PLAN.md](../../Tasks/PLAN.md). Три шага, временная выдача Word/PDF, готовые работы только metadata, mock-оплата после плана и кэшбэк. Этот документ описывает предыдущие решения/реализацию; при конфликте следовать новому плану. Утверждённый дизайн сохранён коммитом 47d6837.
 
 

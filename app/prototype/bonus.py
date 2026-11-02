@@ -24,7 +24,7 @@ def change(db, user_id, operation_id, kind, amount, order_id=None):
         if a.reserved < amount:
             raise ValueError('missing_reserve')
         a.reserved -= amount
-    elif kind in ('release', 'mature'):
+    elif kind in ('release', 'mature', 'cashback'):
         if kind == 'release':
             if a.reserved < amount:
                 raise ValueError('missing_reserve')
@@ -46,8 +46,6 @@ def change(db, user_id, operation_id, kind, amount, order_id=None):
 
 def qualify(db, order, clock=None):
     """Call in same transaction as completed verified DOCX, never at payment alone."""
-    if order.receipt_status == 'simulated_no_charge':
-        return
     if order.method != 'cash' or order.state not in ('completed','partially_refunded') or order.refunded == order.amount:
         return
     attr = db.scalar(select(Attribution).where(Attribution.invited == order.user_id).with_for_update())
@@ -83,6 +81,7 @@ def mature(db, clock=None, inviter=None):
 
 
 def reverse_reward(db, order, refund_id):
+    reverse_cashback(db,order,refund_id)
     attr = db.scalar(select(Attribution).where(Attribution.invited == order.user_id).with_for_update())
     if not attr:
         return
@@ -102,3 +101,24 @@ def reverse_reward(db, order, refund_id):
     r.amount = target
     if not target:
         r.state = 'cancelled'
+
+
+def cashback(db, order):
+    from .config import cfg
+    if order.method != 'cash' or order.state not in ('completed','partially_refunded'):
+        return
+    amount = (order.amount-order.refunded)*cfg.CASHBACK_BPS//10000
+    change(db,order.user_id,'cashback:'+cfg.CASHBACK_VERSION+':'+order.id,'cashback',amount,order.id)
+
+
+def reverse_cashback(db,order,refund_id):
+    from .config import cfg
+    grant = db.get(BonusEntry,'cashback:'+cfg.CASHBACK_VERSION+':'+order.id)
+    if not grant: return
+    from sqlalchemy import func
+    reversed_amount = db.scalar(select(func.coalesce(func.sum(BonusEntry.amount),0)).where(
+        BonusEntry.order_id==order.id,BonusEntry.operation_id.like('cashback-reversal:%')))
+    target = (order.amount-order.refunded)*cfg.CASHBACK_BPS//10000
+    reduction = grant.amount-target-reversed_amount
+    if reduction > 0:
+        change(db,order.user_id,'cashback-reversal:'+refund_id,'reversal',reduction,order.id)

@@ -29,30 +29,40 @@ class Groq:
         self.transport = transport
         self.model = model or cfg.GROQ_MODEL
 
-    def generate(self, topic, headings, step):
+    def generate(self, topic, headings, step, settings=None, preflight=False):
+        settings = settings or {}
         if not cfg.GROQ_API_KEY:
             raise ProviderError('groq_key_missing')
         # No email, name, account, title-page or payment fields cross this boundary.
         if step == 'plan':
-            instruction = 'Составь план учебного текста. Верни JSON {"sections":["заголовок",...]}, от 2 до 4 разделов.'
-            output = 700
+            instruction = ('Составь содержательный план учебной работы по настройкам пользователя. '
+                           'Верни JSON {"chapters":[{"title":"Название главы","sections":["Параграф"]}]}. '
+                           f'Ровно {settings.get("chapters",2)} главы, по 1–2 параграфа. Введение, заключение и источники не включай.')
+            output = 1200
         else:
-            instruction = ('Напиши содержательный раздел на русском, 3–5 абзацев, без Markdown. '
-                           'Не придумывай статистику, источники, DOI и цитаты. '
+            instruction = ('Напиши связный содержательный раздел на русском без Markdown. '
+                           f'Цель раздела: примерно {settings.get("target_words",250)} русских слов. '
+                           'Не повторяй другие разделы. Соблюдай предмет и требования. '
+                           'Не придумывай статистику, DOI и цитаты. '
                            'Верни JSON {"paragraphs":["текст",...],"table":null}. '
                            'При необходимости table={"headers":[...],"rows":[[...]],"caption":"..."}. '
-                           'Для списка литературы указывай только известные реальные источники и явно отметь, '
-                           'что библиографические сведения требуют ручной проверки; не утверждай проверку URL. '
+                           'Для библиографии указывай известные реальные источники, отметь необходимость проверки сведений. '
                            f'Текущий раздел: {step}. Утверждённый план: {json.dumps(headings, ensure_ascii=False)}')
-            output = 1200
+            output = min(2400,max(1000,int(settings.get("target_words",250)*3.5)))
+        from .catalog import CATALOG
+        from .token_limits import bounded_output
+        messages = [{'role':'system','content':instruction},
+                    {'role':'user','content':json.dumps({'topic':topic,'settings':settings}, ensure_ascii=False)}]
+        output = bounded_output(messages,output,CATALOG.get(settings.get('doc_type','abstract'),CATALOG['abstract']))
+        if preflight: return None,0
         try:
             with httpx.Client(timeout=httpx.Timeout(55, connect=10), transport=self.transport) as c:
                 r = c.post('https://api.groq.com/openai/v1/chat/completions',
                            headers={'Authorization': 'Bearer '+cfg.GROQ_API_KEY},
                            json={'model': self.model, 'temperature': 0.2, 'max_completion_tokens': output,
                                  'response_format': {'type':'json_object'},
-                                 'messages':[{'role':'system','content':instruction},
-                                             {'role':'user','content':json.dumps({'topic':topic}, ensure_ascii=False)}]})
+                                 **({'reasoning_effort':'low'} if 'gpt-oss' in self.model else {}),
+                                 'messages':messages})
         except httpx.RequestError:
             raise ProviderError('ai_timeout', True, 30) from None
         if r.status_code == 429:
@@ -60,7 +70,7 @@ class Groq:
         if r.status_code >= 500:
             raise ProviderError('ai_unavailable', True, 30)
         if r.status_code != 200:
-            raise ProviderError('ai_auth' if r.status_code in (401,403) else 'ai_request_rejected')
+            raise ProviderError('ai_auth' if r.status_code == 401 else 'ai_access_denied' if r.status_code == 403 else 'ai_request_rejected')
         try:
             data = r.json()
             if data['choices'][0].get('finish_reason') != 'stop':

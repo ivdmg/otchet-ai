@@ -9,7 +9,10 @@ def enqueue(db, order):
     existing = db.scalar(select(Job).where(Job.order_id == order.id))
     if existing:
         return existing
-    job = Job(document_id=order.document_id, order_id=order.id, kind='document',
+    from . import documents
+    from .models import Document
+    doc = db.get(Document,order.document_id)
+    job = Job(units=documents.freeze_units(doc.settings,doc.approved_plan),document_id=order.document_id, order_id=order.id, kind='document',
               budget=order.ai_budget, model=order.model)
     db.add(job)
     order.state = 'queued'
@@ -52,18 +55,23 @@ def reconcile_order(order_id, gateway=None):
 
 
 def request_refund(db, order, amount, operation_id):
-    if order.receipt_status == "simulated_no_charge":
-        raise ValueError("simulated_payment_has_no_money_to_refund")
     existing = db.scalar(select(Refund).where(Refund.operation_id == operation_id))
     if existing:
         return existing
     pending = db.scalars(select(Refund).where(Refund.order_id == order.id,
-                          Refund.state != 'succeeded')).all()
+                          Refund.state.notin_(['succeeded','simulated']))).all()
     if pending or amount <= 0 or order.refunded+amount > order.amount:
         raise ValueError('refund_conflict')
     refund = Refund(order_id=order.id, amount=amount, operation_id=operation_id)
     db.add(refund)
-    order.state = 'refund_pending'
+    if order.receipt_status == 'simulated_no_charge':
+        refund.state = 'simulated'
+        db.flush()
+        order.refunded += amount
+        order.state = 'simulated_refund' if order.refunded == order.amount else 'simulated_partial_refund'
+        bonus.reverse_reward(db,order,refund.id)
+    else:
+        order.state = 'refund_pending'
     return refund
 
 
@@ -72,11 +80,11 @@ def reconcile_refund(refund_id, gateway=None):
     with DB.begin() as db:
         # Uniform order -> refund -> attribution -> account lock ordering.
         r = db.get(Refund, refund_id)
-        if not r or r.state == 'succeeded' or r.retry_at > now():
+        if not r or r.state in ('succeeded','simulated') or r.retry_at > now():
             return
         order = db.scalar(select(Order).where(Order.id == r.order_id).with_for_update())
         db.refresh(r, with_for_update=True)
-        if r.state == 'succeeded':
+        if r.state in ('succeeded','simulated'):
             return
         if not r.provider_id and now()-r.created >= 23*3600:
             order.state = 'refund_attention'
@@ -111,7 +119,7 @@ def reconcile_refund(refund_id, gateway=None):
 def reconcile(gateway=None):
     with DB() as db:
         ids = list(db.scalars(select(Order.id).where(Order.state == 'checking_payment', Order.method == 'cash')))
-        refunds = list(db.scalars(select(Refund.id).where(Refund.state != 'succeeded', Refund.retry_at <= now())))
+        refunds = list(db.scalars(select(Refund.id).where(Refund.state.notin_(['succeeded','simulated']), Refund.retry_at <= now())))
     for id in ids:
         try:
             reconcile_order(id, gateway)
@@ -143,7 +151,7 @@ def refund_notification(db, id, gateway):
     r = db.scalar(select(Refund).where(Refund.provider_id == id))
     if not r:
         uncertain = db.scalar(select(Refund).where(Refund.order_id == order.id,
-                              Refund.provider_id.is_(None),Refund.state != 'succeeded'))
+                              Refund.provider_id.is_(None),Refund.state.notin_(['succeeded','simulated'])))
         if uncertain:
             if now()-uncertain.created >= 23*3600:
                 raise ProviderError('refund_idempotency_window_expired')
