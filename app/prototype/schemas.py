@@ -56,13 +56,15 @@ class Draft(Input):
     chapters: int = Field(default=2, ge=2, le=3, strict=True)
     subject: str = Field(default='', max_length=200)
     notes: str = Field(default='', max_length=4000)
+    include_materials: bool = Field(default=False, strict=True)
     input_version: str = 'personal-2026-11-v2'
     _safe = field_validator('topic')(safe_text)
 
     @model_validator(mode='after')
     def valid_volume(self):
         from .catalog import CATALOG, VERSION
-        if self.pages > CATALOG[self.doc_type]['max_pages'] or self.input_version != VERSION:
+        from .layout import minimum_pages
+        if not minimum_pages(self.chapters) <= self.pages <= CATALOG[self.doc_type]['max_pages'] or self.input_version != VERSION:
             raise ValueError('invalid_catalog_volume_or_version')
         return self
 
@@ -88,3 +90,7 @@ class Plan(Input):
 class Buy(Input):
     method: Literal['cash', 'bonus']
     approval_hash: str = Field(min_length=64, max_length=64)
+
+
+class MaterialOptions(Input):
+    include_materials: bool = Field(strict=True)

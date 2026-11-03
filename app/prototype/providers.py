@@ -9,8 +9,9 @@ from .config import cfg
 
 
 class ProviderError(Exception):
-    def __init__(self, code, retryable=False, retry_after=0):
+    def __init__(self, code, retryable=False, retry_after=0, diagnostics=None):
         self.code, self.retryable, self.retry_after = code, retryable, retry_after
+        self.diagnostics = diagnostics or {}
         super().__init__(code)
 
 
@@ -55,12 +56,24 @@ class Groq:
         else:
             instruction = ('Напиши связный содержательный раздел на русском без Markdown. '
                            f'Цель раздела: примерно {settings.get("target_words",250)} русских слов. '
+                           f'Не превышай {round(settings.get("target_words",250)*1.15)} слов: раздел имеет фиксированный бюджет страницы. '
+                           'Не добавляй заголовок раздела в paragraphs: оформление и заголовок добавит сервер. '
+                           'В библиографии каждый источник верни отдельным элементом paragraphs, без повторения названия списка. '
                            'Не повторяй другие разделы. Соблюдай предмет и требования. '
                            'Не придумывай статистику, DOI и цитаты. '
                            'Верни JSON {"paragraphs":["текст",...],"table":null}. '
-                           'При необходимости table={"headers":[...],"rows":[[...]],"caption":"..."}. '
+                           'Не добавляй дополнительные поля без разрешения ниже. '
                            'Для библиографии указывай известные реальные источники, отметь необходимость проверки сведений. '
                            f'Текущий раздел: {step}. Утверждённый план: {json.dumps(headings, ensure_ascii=False)}')
+            material=settings.get('material_kind','none')
+            if material=='table':
+                instruction+=' Обязательно добавь одну содержательную компактную таблицу: table={"headers":[...],"rows":[[...]],"caption":"..."}, максимум 3 столбца и 3 строки, ячейки до 100 символов. Без выдуманных числовых результатов: можно сравнить понятия или методы.'
+            elif material=='formula':
+                instruction+=' Если уместно, добавь formula={"expression":"x = a + b","symbols":["x - пояснение"]}. Простая линейная формула без LaTeX, до 3 пояснений. table=null.'
+            elif material=='listing':
+                instruction+=' Если это уместно для темы, добавь listing={"language":"python","caption":"Название примера","code":"код"}. Не более 8 строк, 72 символов на строку. Код - учебный пример, не выполняй его. table=null.'
+            else:
+                instruction+=' Таблицы, формулы и листинги в этом разделе не разрешены. Верни только paragraphs и table=null.'
             output = min(2400,max(1000,int(settings.get("target_words",250)*3.5)))
         from .catalog import CATALOG
         from .token_limits import bounded_output
@@ -79,13 +92,21 @@ class Groq:
         except httpx.RequestError:
             raise ProviderError('ai_timeout', True, 30) from None
         if r.status_code == 429:
-            raise ProviderError('ai_rate_limit', True, retry_after(r.headers.get('retry-after')))
+            try: message = str(r.json().get('error',{}).get('message','')).lower()
+            except (ValueError,AttributeError): message = ''
+            daily = any(s in message for s in ('per day','per-day','daily'))
+            raise ProviderError('ai_daily_limit' if daily else 'ai_rate_limit', not daily,
+                                retry_after(r.headers.get('retry-after')), {'http_status':429,'category':'daily_quota' if daily else 'rate_limit'})
         if r.status_code == 402:
             raise ProviderError('ai_credits_required')
         if r.status_code >= 500:
             raise ProviderError('ai_unavailable', True, 30)
         if r.status_code != 200:
-            raise ProviderError('ai_auth' if r.status_code == 401 else 'ai_access_denied' if r.status_code == 403 else 'ai_request_rejected')
+            try: message = str(r.json().get('error',{}).get('message','')).lower()
+            except (ValueError,AttributeError): message = ''
+            category = next((s for s in ('region','country','permission','policy','budget','key') if s in message),'unknown')
+            raise ProviderError('ai_auth' if r.status_code == 401 else 'ai_access_denied' if r.status_code == 403 else 'ai_request_rejected',
+                                diagnostics={'http_status':r.status_code,'category':category})
         try:
             data = r.json()
             if data['choices'][0].get('finish_reason') != 'stop':

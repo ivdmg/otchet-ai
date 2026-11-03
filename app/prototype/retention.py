@@ -13,6 +13,7 @@ def metadata_backup(destination):
             for row in db.execute(select(table)).mappings():
                 data = dict(row)
                 if table.name == 'gd_documents':
+                    data['title_data'] = {}
                     for key in ('file_bytes','file_path','file_hash','pdf_path','pdf_hash','delivery_id'):
                         data[key] = None
                     if data['state'] not in ('draft','planning','plan_ready','approved'):
@@ -21,7 +22,7 @@ def metadata_backup(destination):
                 if table.name == 'gd_jobs':
                     data['units'] = [{k:v for k,v in unit.items() if k != 'heading'} for unit in data['units']]
                     data['steps'] = {k:{'backup_omitted':True} for k in data['steps']}
-                    if data['state'] in ('queued','running','retry'):
+                    if data['state'] in ('queued','running','retry','paused'):
                         data['state'],data['error'] = 'failed','restore_requires_reconciliation'
                 rows.append(data)
             tables[table.name] = rows

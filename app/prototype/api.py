@@ -11,11 +11,11 @@ from sqlalchemy.exc import IntegrityError
 from .auth import (current_user, digest, get_db, issue_token, owned,
                    password_hash, password_ok)
 from .config import cfg
-from .catalog import CATALOG, VERSION, budget
+from .catalog import CATALOG, VERSION, budget,quote_price,MATERIALS_BPS
 from .db import counter, limit
 from .models import (Attribution, AuthToken, BonusAccount, BonusEntry, DB, Document,
                      Job, Order, Refund, Reward, Session, User, now)
-from .schemas import Buy, Credentials, Draft, EmailInput, Plan, Register, Reset, TokenInput, ProfileInput
+from .schemas import Buy, Credentials, Draft, EmailInput, Plan, Register, Reset, TokenInput, ProfileInput,MaterialOptions
 from . import bonus, documents, payments
 from .providers import ProviderError, YooKassa, ai_provider
 
@@ -191,16 +191,17 @@ def referral_cookie(code: str,request: Request,response: Response,db=Depends(get
 
 @app.get('/api/v1/catalog')
 def catalog():
-    return {'mode':'sandbox','version':VERSION,'types':CATALOG,'chapters':[2,3], 'retention_hours':24,
+    return {'mode':'sandbox','version':VERSION,'types':CATALOG,'chapters':[2,3], 'minimum_pages_by_chapters':{'2':7,'3':8}, 'retention_hours':24,
             'front_matter_included':True,'cashback_bps':cfg.CASHBACK_BPS,
             'mock_email':cfg.MOCK_EMAIL and cfg.APP_ENV == 'development',
+            'materials_surcharge_bps':MATERIALS_BPS,
             'payment_mode':'mock' if cfg.MOCK_PAYMENTS else 'disabled'}
 
 
 @app.post('/api/v1/quote')
 def quote(body: Draft):
-    return {'version':VERSION,'price_kopecks':CATALOG[body.doc_type]['price'],
-            'bonus_hundredths':CATALOG[body.doc_type]['price'],'settings':body.model_dump()}
+    result=quote_price(body.doc_type,body.model_dump())
+    return {'version':VERSION,**result,'bonus_hundredths':result['price_kopecks'],'settings':body.model_dump()}
 
 
 
@@ -211,10 +212,13 @@ def reserve_budget(db,amount):
         raise HTTPException(429,'daily_ai_budget_reserved')
 
 
-def job_view(job,doc):
+def job_view(job,doc,order=None):
+    from .recovery import view
+    recovery=view(job,doc,order)
     return {'id':job.id,'document_id':job.document_id,'order_id':job.order_id,'kind':job.kind,'provider':'openrouter' if job.model.startswith('openrouter:') else 'groq','model':job.model.removeprefix('openrouter:'),
             'status':job.state,**documents.progress(job,doc),'heartbeat':job.heartbeat,
             'retry_at':job.retry_at or None,'error':job.error,'attempts':job.attempts,
+            'recovery':recovery,'manual_retries':job.manual_retries,
             'metrics':job.metrics,'tokens':{'reported':job.usage,'charged_conservative':job.charged,'budget':job.budget}}
 
 
@@ -222,10 +226,13 @@ def doc_view(db,doc):
     order = db.scalar(select(Order).where(Order.document_id == doc.id))
     jobs = db.scalars(select(Job).where(Job.document_id == doc.id).order_by(Job.created)).all()
     return {'id':doc.id,'topic':doc.topic,'doc_type':doc.doc_type,'state':doc.state,'plan':doc.plan,
+            'plan_revision':doc.plan_revision,'plan_regenerations':doc.plan_regenerations,
+            'can_regenerate_plan':bool(doc.plan and doc.state in ('plan_ready','approved') and not order and doc.plan_regenerations<1),
+            'quote':quote_price(doc.doc_type,doc.settings),
             'approved_plan':doc.approved_plan,'settings':doc.settings,'approval_hash':doc.approval_hash,
             'actual_pages':doc.actual_pages,'created':doc.created,'expires':doc.expires,
-            'order':order_view(db,order) if order else None,'jobs':[job_view(j,doc) for j in jobs],
-            'delivery_id':doc.delivery_id if doc.file_hash and doc.expires and doc.expires > now() else None}
+            'order':order_view(db,order) if order else None,'jobs':[job_view(j,doc,order) for j in jobs],
+            'delivery_id':doc.delivery_id if doc.state=='completed' and doc.file_hash and doc.pdf_hash and doc.expires and doc.expires > now() else None}
 
 
 @app.post('/api/v1/drafts',status_code=201)
@@ -287,7 +294,12 @@ def edit_plan(id: str,body: Plan,user=Depends(current_user),db=Depends(get_db)):
     db.refresh(doc,with_for_update=True)
     if doc.state not in ('plan_ready','approved'):
         raise HTTPException(409,'plan_not_editable')
-    doc.settings = {**doc.settings,'chapters':len(body.chapters)}
+    settings = {**doc.settings,'chapters':len(body.chapters)}
+    try:
+        Draft.model_validate(settings)
+    except ValueError:
+        raise HTTPException(422,'volume_too_small_for_structure') from None
+    doc.settings = settings
     doc.state,doc.approved_plan,doc.approval_hash = 'plan_ready',None,None
     doc.plan = body.model_dump()
     db.commit()
@@ -315,14 +327,16 @@ def approve(id: str,user=Depends(current_user),db=Depends(get_db)):
     doc = owned(db,Document,id,user)
     db.refresh(doc,with_for_update=True)
     if doc.state == 'approved':
-        return {'approved_plan':doc.approved_plan,'approval_hash':doc.approval_hash,'price_kopecks':CATALOG[doc.doc_type]['price']}
+        return {'approved_plan':doc.approved_plan,'approval_hash':doc.approval_hash,**quote_price(doc.doc_type,doc.settings)}
     if doc.state != 'plan_ready':
         raise HTTPException(409,'plan_not_ready')
     doc.approved_plan = Plan.model_validate(doc.plan).model_dump()
+    from datetime import datetime
+    doc.title_data = {**(user.profile_data or {}), 'year':datetime.now().year}
     doc.approval_hash = hashlib.sha256(json.dumps({'settings':doc.settings,'plan':doc.approved_plan,'catalog':VERSION},sort_keys=True,ensure_ascii=False).encode()).hexdigest()
     doc.state = 'approved'
     db.commit()
-    return {'approved_plan':doc.approved_plan,'approval_hash':doc.approval_hash,'price_kopecks':CATALOG[doc.doc_type]['price']}
+    return {'approved_plan':doc.approved_plan,'approval_hash':doc.approval_hash,**quote_price(doc.doc_type,doc.settings)}
 
 
 def order_view(db,o):
@@ -350,13 +364,13 @@ def buy(id: str,body: Buy,user=Depends(current_user),db=Depends(get_db)):
     if body.method == 'cash' and not cfg.MOCK_PAYMENTS and (not cfg.YUKASSA_SHOP_ID or not cfg.YUKASSA_SECRET_KEY.startswith('test_')):
         raise HTTPException(503,'yukassa_test_credentials_required')
     settings = Draft.model_validate(doc.settings)
-    tokens = budget(doc.doc_type,settings.pages)
+    tokens = budget(doc.doc_type,settings.pages,settings.include_materials)
     # Pure local token preflight: reject oversized inputs before payment/reserve.
     for key,heading,_ in documents.pipeline(doc.approved_plan,doc.settings)[:-3]:
         ai_provider().generate(doc.topic,doc.approved_plan['chapters'],heading,
                         settings=documents.generation_settings(doc.settings,doc.approved_plan,key),preflight=True)
     reserve_budget(db,tokens)
-    order = Order(document_id=id,user_id=user.id,method=body.method,amount=CATALOG[doc.doc_type]['price'],ai_budget=tokens)
+    order = Order(document_id=id,user_id=user.id,method=body.method,amount=quote_price(doc.doc_type,doc.settings)['price_kopecks'],ai_budget=tokens)
     db.add(order)
     db.flush()
     if body.method == 'cash' and cfg.MOCK_PAYMENTS:
@@ -385,7 +399,104 @@ def get_job(id: str,user=Depends(current_user),db=Depends(get_db)):
     if not j:
         raise HTTPException(404,'not_found')
     doc = owned(db,Document,j.document_id,user)
-    return job_view(j,doc)
+    return job_view(j,doc,db.get(Order,j.order_id) if j.order_id else None)
+
+
+@app.put('/api/v1/documents/{id}/options')
+def change_options(id:str,body:MaterialOptions,user=Depends(current_user),db=Depends(get_db)):
+    doc=owned(db,Document,id,user);db.refresh(doc,with_for_update=True)
+    if doc.state not in ('plan_ready','approved') or db.scalar(select(Order.id).where(Order.document_id==id)):
+        raise HTTPException(409,'ordered_document_locked')
+    settings={**doc.settings,'include_materials':body.include_materials}
+    Draft.model_validate(settings)
+    doc.settings,doc.state,doc.approval_hash,doc.approved_plan=settings,'plan_ready',None,None
+    db.commit()
+    return doc_view(db,doc)
+
+
+@app.post('/api/v1/documents/{id}/regenerate-plan',status_code=202)
+def regenerate_plan(id:str,user=Depends(current_user),db=Depends(get_db)):
+    doc=owned(db,Document,id,user);db.refresh(doc,with_for_update=True)
+    if doc.state not in ('plan_ready','approved') or not doc.plan or db.scalar(select(Order.id).where(Order.document_id==id)):
+        raise HTTPException(409,'plan_not_editable')
+    if doc.plan_regenerations>=1: raise HTTPException(409,'plan_regeneration_used')
+    counter(db,'draft-admission')
+    if not limit(db,f'plans-hour:{user.id}:{now()//3600}',cfg.PLAN_HOURLY): raise HTTPException(429,'plan_hourly_limit')
+    if not limit(db,f'plans:{user.id}:{now()//86400}',cfg.PLAN_DAILY): raise HTTPException(429,'plan_daily_limit')
+    reserve_budget(db,7000)
+    job=db.scalar(select(Job).where(Job.document_id==id,Job.kind=='plan').with_for_update())
+    if not job:
+        job=Job(document_id=id,kind='plan',budget=7000);db.add(job)
+    else:
+        job.budget+=7000
+        job.steps,job.attempts,job.manual_retries={},0,0
+        job.state,job.stage,job.error,job.retry_at,job.lease_until,job.attempt_token='queued','queued',None,0,0,None
+        job.model=cfg.ai_model
+    doc.plan_regenerations+=1
+    doc.state,doc.approved_plan,doc.approval_hash='planning',None,None
+    db.commit()
+    return doc_view(db,doc)
+
+
+@app.post('/api/v1/documents/{id}/retry',status_code=202)
+def retry_document(id:str,user=Depends(current_user),db=Depends(get_db)):
+    doc=owned(db,Document,id,user)
+    job=db.scalar(select(Job).where(Job.document_id==id).order_by(Job.kind,Job.created.desc()).with_for_update())
+    if not job: raise HTTPException(409,'nothing_to_retry')
+    db.refresh(doc,with_for_update=True)
+    order=db.scalar(select(Order).where(Order.id==job.order_id).with_for_update()) if job.order_id else None
+    from .recovery import view
+    if not view(job,doc,order)['can_retry']: raise HTTPException(409,'retry_unavailable')
+    if job.state=='paused' and job.retry_at>now(): raise HTTPException(429,'retry_not_due')
+    if job.kind=='plan':
+        reserve_budget(db,7000);job.budget+=7000;job.model=cfg.ai_model
+    job.manual_retries+=1
+    job.attempts,job.state,job.error,job.retry_at,job.lease_until,job.attempt_token=0,'queued',None,0,0,None
+    job.heartbeat=now()
+    doc.state='planning' if job.kind=='plan' else 'generating'
+    doc.expires=None
+    if order: order.state='queued'
+    db.commit()
+    return doc_view(db,doc)
+
+
+@app.post('/api/v1/documents/{id}/cancel')
+def cancel_document(id:str,user=Depends(current_user),db=Depends(get_db)):
+    doc=owned(db,Document,id,user)
+    job=db.scalar(select(Job).where(Job.document_id==id).order_by(Job.kind,Job.created.desc()).with_for_update())
+    if not job: raise HTTPException(409,'nothing_to_cancel')
+    db.refresh(doc,with_for_update=True)
+    if job.state=='cancelled': return doc_view(db,doc)
+    if job.state not in ('queued','running','retry','paused'): raise HTTPException(409,'cancel_unavailable')
+    from .recovery import settle_failure
+    settle_failure(db,job,doc,'cancelled_by_user')
+    if job.kind=='plan' and doc.plan: doc.state,doc.expires='plan_ready',None
+    db.commit()
+    return doc_view(db,doc)
+
+
+@app.post('/api/v1/documents/{id}/restart',status_code=201)
+def restart_from_plan(id:str,user=Depends(current_user),db=Depends(get_db)):
+    doc=owned(db,Document,id,user);db.refresh(doc,with_for_update=True)
+    if doc.state not in ('failed','cancelled') or not (doc.plan or doc.approved_plan) or (doc.expires and doc.expires<=now()):
+        raise HTTPException(409,'saved_plan_unavailable')
+    job=db.scalar(select(Job).where(Job.document_id==id).order_by(Job.kind).with_for_update())
+    previous=(job.metrics or {}).get('restart_document_id') if job else None
+    if previous:
+        copy=db.get(Document,previous)
+        if copy and copy.state!='archived': return doc_view(db,copy)
+    counter(db,'draft-admission')
+    if db.scalar(select(func.count()).select_from(Document))>=cfg.MAX_DOCS:
+        raise HTTPException(409,'personal_storage_limit')
+    unpaid=db.scalar(select(func.count()).select_from(Document).where(Document.user_id==user.id,Document.state.in_(['draft','planning','plan_ready','approved'])))
+    if unpaid>=2: raise HTTPException(409,'too_many_unpaid_drafts')
+    Draft.model_validate(doc.settings)
+    copy=Document(user_id=user.id,topic=doc.topic,doc_type=doc.doc_type,settings=dict(doc.settings),
+                  state='plan_ready',plan=doc.approved_plan or doc.plan,plan_revision=1,plan_regenerations=doc.plan_regenerations)
+    db.add(copy);db.flush()
+    if job: job.metrics={**job.metrics,'restart_document_id':copy.id}
+    db.commit()
+    return doc_view(db,copy)
 
 
 @app.get('/api/v1/documents')
@@ -411,6 +522,8 @@ def delivery(id: str,format: str,inline: bool=False,user=Depends(current_user),d
         documents.expire(db)
         db.commit()
         raise HTTPException(410,'delivery_expired')
+    if doc.state != 'completed' or not doc.file_hash or not doc.pdf_hash:
+        raise HTTPException(409,'delivery_not_ready')
     if format not in ('pdf','docx'):
         raise HTTPException(404,'unknown_format')
     try:

@@ -64,6 +64,7 @@ def fail(id, token, exc):
         if exc.code == 'lease_lost':
             return
         job.error = exc.code
+        if getattr(exc,'diagnostics',None): job.metrics={**job.metrics,'last_error':exc.diagnostics}
         job.heartbeat = now()
         job.lease_until = 0
         if exc.code == 'local_token_rate_limit':
@@ -78,21 +79,19 @@ def fail(id, token, exc):
             job.state = 'retry'
             job.retry_at = now()+max(exc.retry_after, min(300, 15*2**job.attempts))
             return
-        job.state = 'failed'
         doc = db.get(Document, job.document_id)
-        doc.state = 'failed'
-        doc.expires = now()+86400
-        doc.delivery_id = doc.delivery_id or uid()
-        if job.order_id:
-            order = db.scalar(select(Order).where(Order.id == job.order_id).with_for_update())
-            order.state = 'failed'
-            if order.method == 'bonus':
-                bonus.change(db, order.user_id, 'release:'+order.id, 'release', order.amount, order.id)
-                order.state = 'bonus_released'
-            elif order.receipt_status == 'simulated_no_charge':
-                payments.request_refund(db,order,order.amount-order.refunded,'technical:'+order.id)
-            else:
-                payments.request_refund(db, order, order.amount-order.refunded, 'technical:'+order.id)
+        from .recovery import PAUSABLE,settle_failure
+        formatting = job.stage in ('validation','docx','pdf')
+        if job.kind=='document' and exc.code in PAUSABLE and (formatting or job.budget-job.charged>=CALL_RESERVE):
+            job.state,doc.state='paused','paused'
+            job.retry_at=now()+exc.retry_after if exc.retryable else 0
+            doc.expires,doc.delivery_id=now()+86400,doc.delivery_id or uid()
+            if job.order_id: db.get(Order,job.order_id).state='paused'
+            return
+        if job.kind=='plan' and doc.plan:
+            job.state,doc.state='failed','plan_ready'
+            return
+        settle_failure(db,job,doc,exc.code)
 
 
 def run_one(provider=None):
@@ -121,25 +120,45 @@ def run_one(provider=None):
         if key not in ('validation','docx','pdf'):
             if job.kind != 'plan':
                 settings = documents.generation_settings(settings,plan,key,job.units or None)
+                word_limit = round(settings['target_words']*1.15)
+                settings['target_words'] = max(20,round(settings['target_words']*(0.65**job.attempts)))
             started = time.monotonic()
             result, usage = active_provider.generate(topic,plan.get('chapters',[]),heading,settings=settings)
+            # Charge known usage even if content needs a bounded repair attempt.
+            with DB.begin() as db:
+                saved_job = fenced(db,id,token)
+                saved_job.charged -= max(0,CALL_RESERVE-usage)
+                saved_job.usage += usage
+                saved_job.metrics = {**saved_job.metrics,key:{'tokens':usage,'seconds':round(time.monotonic()-started,3)}}
             if key == 'plan':
                 result = Plan.model_validate(result).model_dump()
                 if len(result['chapters']) != settings.get('chapters',2):
                     raise ProviderError('chapter_count_mismatch',True,15)
             else:
                 result = documents.Content.model_validate(result).checked().model_dump()
+                materials=[name for name in ('table','formula','listing') if result.get(name)]
+                if materials and materials!=[settings.get('material_kind','none')]:
+                    raise ProviderError('invalid_document_content',True,15)
+                if settings.get('material_kind')=='table' and not result.get('table'):
+                    raise ProviderError('invalid_document_content',True,15)
+                if result.get('table') and (len(result['table']['headers'])>3 or len(result['table']['rows'])>3 or
+                    any(len(cell)>100 for row in result['table']['rows'] for cell in row)):
+                    raise ProviderError('invalid_document_content',True,15)
+                from .layout import content_paragraphs
+                paragraphs = content_paragraphs(result,heading)
+                if sum(len(p) for p in paragraphs) < 80:
+                    raise ProviderError('ai_section_empty',True,15)
+                if sum(len(p.split()) for p in paragraphs) > word_limit:
+                    raise ProviderError('ai_section_too_long',True,15)
             with DB.begin() as db:
                 job = fenced(db,id,token)
                 doc = db.get(Document,job.document_id)
-                job.charged -= max(0, CALL_RESERVE-usage)
-                job.usage += usage
-                job.metrics = {**job.metrics,key:{'tokens':usage,'seconds':round(time.monotonic()-started,3)}}
                 job.steps = {**job.steps,key:result}
                 # Latency is operational metadata; never copy generated text into logs.
                 job.heartbeat = now()
                 if key == 'plan':
                     doc.plan = result
+                    doc.plan_revision += 1
                     doc.state = 'plan_ready'
                     job.state,job.stage = 'completed','plan_ready'
                 else:
@@ -171,6 +190,7 @@ def run_one(provider=None):
                 job = fenced(db,id,token)
                 saved = db.scalar(select(Document).where(Document.id == job.document_id).with_for_update())
                 saved.pdf_path,saved.pdf_hash,saved.actual_pages = doc.pdf_path,doc.pdf_hash,doc.actual_pages
+                saved.file_hash,saved.file_bytes = doc.file_hash,doc.file_bytes
                 saved.delivery_id,saved.expires = uid(),now()+86400
                 documents.read(saved)
                 documents.read_pdf(saved)
@@ -208,6 +228,10 @@ def tick(provider=None,gateway=None):
     with DB.begin() as db:
         bonus.mature(db)
         documents.expire(db)
+        from .ai_budget import reconcile_idle
+        from .recovery import expire_pauses
+        expire_pauses(db)
+        reconcile_idle(db)
     return run_one(provider)
 
 

@@ -12,7 +12,7 @@ from app.prototype.worker import run_one
 from .helpers import signup,PARAGRAPH
 
 OUTLINE={'chapters':[{'title':'Теоретические основы','sections':['Основные понятия']},{'title':'Практический анализ','sections':['Методы проверки']}]}
-INPUT={'topic':'Сохранение учебных данных','anonymized':True,'pages':3,'chapters':2,'subject':'Информатика','notes':'Резервное копирование'}
+INPUT={'topic':'Сохранение учебных данных','anonymized':True,'pages':7,'chapters':2,'subject':'Информатика','notes':'Резервное копирование'}
 
 class ExplicitAI:
     def generate(self,topic,headings,step,settings=None):

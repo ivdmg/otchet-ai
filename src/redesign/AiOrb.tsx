@@ -6,7 +6,7 @@ function ThinkingCanvas({
   state,
 }: {
   theme: "dark" | "light";
-  state: "composing" | "solving";
+  state: "composing" | "solving" | "searching";
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -105,6 +105,6 @@ function ThinkingCanvas({
   );
 }
 
-export function AiOrb({ theme, state = "composing" }: { theme: "dark" | "light"; state?: "composing" | "solving" }) {
+export function AiOrb({ theme, state = "composing" }: { theme: "dark" | "light"; state?: "composing" | "solving" | "searching" }) {
   return <div className={`orb-scene thinking-scene composing-scene ${state === "solving" ? "solving-scene" : ""}`}><div className="thinking-orb-field"><ThinkingCanvas theme={theme} state={state} /></div></div>;
 }

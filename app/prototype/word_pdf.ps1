@@ -32,7 +32,13 @@ try {
     $word.DisplayAlerts = 0
     $word.AutomationSecurity = 3
     $word.Options.UpdateLinksAtOpen = $false
-    $document = $word.Documents.Open($Source, $false, $true, $false)
+    $document = $word.Documents.Open($Source, $false, $false, $false)
+    # PAGEREF-based contents works without Word outline headings/collapse controls.
+    [void]$document.Fields.Update()
+    $document.Repaginate()
+    [void]$document.Fields.Update()
+    $document.Repaginate()
+    $document.Save()
     $document.ExportAsFixedFormat($Target, 17)
 } finally {
     if ($document) { try {$document.Close([ref]0)} catch {}; [void][Runtime.InteropServices.Marshal]::ReleaseComObject($document) }

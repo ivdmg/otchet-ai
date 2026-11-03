@@ -43,6 +43,8 @@ import {
 import { useUserStore } from "../store/useUserStore";
 import { ChromeButton, ChromeTitle, ChromeTheme } from "./Chrome";
 import { AiOrb } from "./AiOrb";
+import {RecoveryNotice} from './RecoveryNotice';
+import {MaterialSwitch} from './MaterialSwitch';
 import { PricingCarousel } from "./LandingCarousels";
 import { WorkSamples } from "./WorkSamples";
 import {
@@ -96,6 +98,7 @@ type FormData = {
   pages: number;
   chapters: number;
   notes: string;
+  include_materials?: boolean;
   file: File | null;
 };
 const TYPES = [
@@ -146,6 +149,7 @@ const initialForm: FormData = {
   pages: 25,
   chapters: 2,
   notes: "",
+  include_materials:false,
   file: null,
 };
 const demoTitle = "Искусственный интеллект в банковской сфере";
@@ -516,7 +520,7 @@ function Home({
                 <div className="schema-ruler">
                   <span>30 мм</span>
                   <i />
-                  <span>10 мм</span>
+                  <span>15 мм</span>
                 </div>
                 <div className="schema-text-area">
                   <div className="schema-title">СТРУКТУРА РАБОТЫ</div>
@@ -557,7 +561,7 @@ function Home({
                 {[
                   [
                     "Поля и отступы",
-                    "Поля 30 / 10 / 20 / 20 мм. Красная строка 1,25 см.",
+                    "Поля 30 / 15 / 20 / 20 мм. Красная строка 1,25 см.",
                   ],
                   [
                     "Шрифт и интервалы",
@@ -723,11 +727,14 @@ export default function Studio() {
   currentPage.current = page;
   const [sidebarOpen, setSidebarOpen] = useState(() => matchMedia("(min-width: 901px)").matches);
   const menuButton = useRef<HTMLButtonElement>(null);
-  const [step, setStep] = useState(1);
+  const [step, setStepRaw] = useState(1);
+  const [reachedStep, setReachedStep] = useState(1);
+  const adoptedStage = useRef({id:'',stage:1});
+  const setStep = (value:number) => {setStepRaw(value);setReachedStep(old=>Math.max(old,value));};
   const [form, setForm] = useState<FormData>(initialForm);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  useEffect(()=>{if(chapters.length>=2)setForm(old=>({...old,chapters:chapters.length}));},[chapters.length]);
   const [openChapters, setOpenChapters] = useState<number[]>([]);
-  useEffect(() => {if(step === 2) setOpenChapters([]);}, [step]);
   const [regenerated, setRegenerated] = useState(false);
   const [works, setWorks] = useState<Work[]>([]);
   const [api] = useState(() => new PrototypeApi(() => {}));
@@ -741,6 +748,8 @@ export default function Studio() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authName, setAuthName] = useState('');
   const [planPending, setPlanPending] = useState(false);
+  const [connectionLost,setConnectionLost]=useState(false);
+  const [pollRevision,setPollRevision]=useState(0);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login'|'register'|'verify'>('login');
@@ -754,7 +763,7 @@ export default function Studio() {
   const [zoom, setZoom] = useState(100);
   const [guides, setGuides] = useState(false);
   const [modal, setModal] = useState<
-    "login" | "logout" | "payment" | "download" | "topup" | "preview" | "regenerate" | "reset-password" | null
+    "login" | "logout" | "cancel-generation" | "payment" | "download" | "topup" | "preview" | "regenerate" | "reset-password" | null
   >(null);
   const [format, setFormat] = useState<"docx" | "pdf">("docx");
   const [busy, setBusy] = useState(false);
@@ -778,10 +787,19 @@ export default function Studio() {
     ...user.titleDefaults,
   });
   const selectedType = TYPES.find((item) => item.id === form.type)!;
-  const tier = {...selectedType,price:catalog?.types?.[form.type]?.price / 100 || selectedType.price};
+  const minPages = 5 + form.chapters;
+  const displayedChapters:Chapter[] = chapters.length ? chapters : Array.from({length:form.chapters},()=>({title:'',sections:['','']}));
+  const basePrice = catalog?.types?.[form.type]?.price || selectedType.price*100;
+  const materialsPrice = form.include_materials ? Math.ceil(basePrice*(catalog?.materials_surcharge_bps??1000)/10000) : 0;
+  const totalPrice = basePrice+materialsPrice;
+  const tier = {...selectedType,price:totalPrice/100};
   const title = form.title || demoTitle;
   const generationJob = activeDoc?.jobs?.find((j:any)=>j.kind==='document');
-  const generationFailed = generationJob?.status==='failed';
+  const planJob=activeDoc?.jobs?.find((j:any)=>j.kind==='plan');
+  const planLoading=planPending&&!connectionLost;
+  const generationFailed = ['failed','paused','cancelled'].includes(generationJob?.status)||activeDoc?.state==='expired'||(generationJob?.status==='completed'&&!activeDoc?.delivery_id)||connectionLost||generationJob?.recovery?.stalled;
+  const generationWaiting = generationJob?.status==='retry';
+  const generationComplete=activeDoc?.state==='completed'&&!!activeDoc?.delivery_id;
   const generationThresholds = [5,75,85,100];
   useEffect(() => {
     document.title = "ГОСТ docx — от темы к готовой работе";
@@ -840,6 +858,8 @@ export default function Studio() {
     }
   }, [notice]);
   const clearSession = () => {
+    setConnectionLost(false);
+    setStepRaw(1);setReachedStep(1);adoptedStage.current={id:'',stage:1};
     api.csrf='';setSignedIn(false);setWorks([]);setAccount(null);setActiveDoc(null);setDocId(null);
     setChapters([]);setApproval(null);setProgress(0);setPlanPending(false);
     sessionStorage.removeItem('studio-delivery-document');
@@ -867,7 +887,7 @@ export default function Studio() {
     setWorks(result.items.filter((d:any) => d.state !== 'archived').map((d:any) => ({
       id:d.id,title:d.topic,type:d.doc_type,pages:d.requested_pages || d.settings?.pages || 0,
       actualPages:d.actual_pages,date:new Date(d.created*1000).toLocaleDateString('ru-RU'),
-      status:['draft','planning','plan_ready','approved'].includes(d.state) ? 'draft':d.state==='completed'?'ready':d.state==='failed'?'failed':'processing',
+      status:['draft','planning','plan_ready','approved'].includes(d.state) ? 'draft':['completed','expired'].includes(d.state)?'ready':d.state==='failed'?'failed':'processing',
       serverState:d.state,chapters:d.plan?.chapters,subject:d.settings?.subject,notes:d.settings?.notes,
     })));
     const balance = await api.request<any>('/referrals');
@@ -876,16 +896,20 @@ export default function Studio() {
       referralCode:balance.code,referralEarnedCredits:balance.history.filter((e:any)=>e.kind==='mature').reduce((n:number,e:any)=>n+e.amount,0)/100,referrals:[]});
   };
   const adopt = (d:any) => {
+    setConnectionLost(false);
     setActiveDoc(d);
     setPlanPending(d.state==='planning');
-    if(d.state==='planning') setStep(2);
     if (d.settings?.pages && adoptedSettings.current !== d.id) {setForm({...initialForm,...d.settings,title:d.topic,type:d.doc_type,file:null});adoptedSettings.current=d.id;}
-    if (d.plan?.chapters && adoptedOutline.current !== d.id) {setChapters(d.plan.chapters);adoptedOutline.current=d.id;setStep(2);}
+    const outlineStamp=d.id+':'+(d.plan_revision??0);
+    if (d.plan?.chapters && adoptedOutline.current !== outlineStamp) {setChapters(d.plan.chapters);setOpenChapters(d.plan.chapters.map((_:unknown,i:number)=>i));adoptedOutline.current=outlineStamp;}
     const job = d.jobs.find((j:any) => j.kind==='document') || d.jobs.find((j:any)=>j.kind==='plan');
-    if (job?.kind==='document') {setStep(3);setProgress(job.percent);}
+    if (job?.kind==='document') setProgress(job.percent);
+    const stage=job?.kind==='document'?3:(job?.kind==='plan'||d.state==='planning'||d.plan)?2:1;
+    setReachedStep(old=>Math.max(old,stage));
+    if(adoptedStage.current.id!==d.id || stage>adoptedStage.current.stage) setStep(stage);
+    adoptedStage.current={id:d.id,stage};
 
     if(d.state==='expired') setError('Срок выдачи истёк. Файлы и текст удалены; сохранена только запись о работе.');
-    if (job?.status==='failed') setError((statuses[d.order?.state] || 'Генерация не завершена')+': '+(job.error==='ai_access_denied' ? 'Groq отклонил запрос генерации (HTTP 403). Попробуйте позже; деньги не списаны.' : job.error));
   };
   useEffect(() => {
     const requestedAuth = new URLSearchParams(location.search).get('auth');
@@ -901,19 +925,22 @@ export default function Studio() {
   useEffect(() => {
     if(!docId || !api.csrf) return;
     let disposed=false;
+    let failures=0;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {try {
       const d = await api.request<any>('/documents/'+docId);
       if(disposed) return;
+      failures=0;
       adopt(d);
-      if(['completed','failed','expired'].includes(d.state)) await refreshLibrary();
+      if(['completed','failed','paused','cancelled','expired'].includes(d.state)) await refreshLibrary().catch(()=>{});
       if(!disposed && ['planning','generating','ordered'].includes(d.state)) timer=setTimeout(poll,2500);
-    } catch(e) {if(!disposed) {setError(errorText(e));timer=setTimeout(poll,5000);}}};
+    } catch(e) {if(!disposed) {failures+=1;setConnectionLost(true);if(failures<3)timer=setTimeout(poll,5000);}}};
     poll();
     return ()=>{disposed=true;clearTimeout(timer);};
-  },[docId,signedIn,activeDoc?.order?.id]);
+  },[docId,signedIn,activeDoc?.order?.id,pollRevision]);
+  useEffect(()=>{const online=()=>setPollRevision(v=>v+1);window.addEventListener('online',online);return()=>window.removeEventListener('online',online);},[]);
   const input = () => ({topic:form.title,doc_type:form.type,pages:form.pages,chapters:form.chapters,
-    subject:form.subject,notes:form.notes,anonymized:true,input_version:catalog?.version});
+    subject:form.subject,notes:form.notes,include_materials:!!form.include_materials,anonymized:true,input_version:catalog?.version});
   const requireLogin = () => {if(!api.csrf){setModal('login');return false;}return true;};
   const switchAuth = (mode:'login'|'register'|'verify') => {setAuthMode(mode);setError('');setConfirmPassword('');};
   const signIn = async () => {
@@ -948,6 +975,8 @@ export default function Studio() {
     } finally {setBusy(false);}
   };
   const start = (type: WorkType = "coursework", topic = "") => {
+    setConnectionLost(false);
+    setReachedStep(1);adoptedStage.current={id:'',stage:1};
     if (page === "home") setSidebarOpen(matchMedia("(min-width: 901px)").matches);
     else if (matchMedia("(max-width: 700px)").matches) setSidebarOpen(false);
     setDocId(null);setActiveDoc(null);sessionStorage.removeItem("studio-delivery-document");
@@ -972,14 +1001,16 @@ export default function Studio() {
     else setPage(next);
   };
   const updateForm = (patch: Partial<FormData>) => {
+    if(activeDoc?.order || planPending) return;
+    setReachedStep(1);setChapters([]);adoptedStage.current={id:'',stage:1};
     if(docId){setDocId(null);setActiveDoc(null);sessionStorage.removeItem("studio-delivery-document");}
-    setForm((old) => ({ ...old, ...patch }));
+    setForm((old) => ({ ...old, ...patch, pages:Math.max(5+(patch.chapters??old.chapters),patch.pages??old.pages) }));
     if (patch.title !== undefined && patch.title.trim().length >= 5)
       setError("");
   };
   const openWork = async (work:Work) => {
-    if(work.status!=='draft') return;
-    try {const d=await api.request<any>('/documents/'+work.id);setDocId(work.id);adopt(d);setStep(d.plan?2:1);setPage('create');}
+    if(work.status==='ready') return;
+    try {const d=await api.request<any>('/documents/'+work.id);setReachedStep(1);setDocId(work.id);adopt(d);setStep(d.jobs.some((j:any)=>j.kind==='document')?3:(d.plan||d.jobs.some((j:any)=>j.kind==='plan'))?2:1);setPage('create');}
     catch(e){setError(errorText(e));}
   };
   const saveDraft = async () => {
@@ -990,15 +1021,45 @@ export default function Studio() {
       await refreshLibrary();setNotice('Черновик сохранён');
     }catch(e){setError(errorText(e));}finally{setBusy(false);}
   };
-  const makePlan = async (event:React.FormEvent) => {
-    event.preventDefault();if(!requireLogin()) return;setBusy(true);setError('');setPlanPending(true);setStep(2);
+  const requestInitialPlan = async () => {
+    if(!requireLogin()) return;setBusy(true);setError('');setPlanPending(true);setStep(2);
     try {
-      if(docId && activeDoc?.plan){setStep(2);return;}
-      const d=docId ? await api.request<any>('/documents/'+docId+'/generate-plan','POST') : await api.request<any>('/documents','POST',input());
-      setDocId(d.document_id);sessionStorage.setItem('studio-delivery-document',d.document_id);
-      setActiveDoc(await api.request('/documents/'+d.document_id));
+      if(docId && activeDoc?.plan){setStep(2);setPlanPending(false);return;}
+      const d=docId ? await api.request<any>('/documents/'+docId+(activeDoc?.state==='failed'?'/retry':'/generate-plan'),'POST') : await api.request<any>('/documents','POST',input());
+      const id=d.document_id||d.id;
+      setDocId(id);sessionStorage.setItem('studio-delivery-document',id);
+      adopt(await api.request('/documents/'+id));setPollRevision(v=>v+1);
     }catch(e){setPlanPending(false);setError(errorText(e));}finally{setBusy(false);}
   };
+  const makePlan = (event:React.FormEvent) => {event.preventDefault();void requestInitialPlan();};
+  const changeMaterials = async (enabled:boolean) => {
+    if(activeDoc?.order||planPending||busy)return;
+    if(!docId||!activeDoc?.plan){setForm(old=>({...old,include_materials:enabled}));return;}
+    setBusy(true);setError('');
+    try{const d=await api.request<any>('/documents/'+docId+'/options','PUT',{include_materials:enabled});setForm(old=>({...old,include_materials:enabled}));setApproval(null);adopt(d);}
+    catch(e){setError(errorText(e));}finally{setBusy(false);}
+  };
+  const recover = async (action:'retry'|'regenerate-plan'|'restart'|'cancel') => {
+    if(!docId||busy)return;setBusy(true);setError('');
+    try{
+      const d=await api.request<any>('/documents/'+docId+'/'+action,'POST');
+      if(d.id!==docId){adoptedOutline.current=null;adoptedSettings.current=null;setDocId(d.id);setReachedStep(1);}
+      sessionStorage.setItem('studio-delivery-document',d.id);adopt(d);setModal(null);setPollRevision(v=>v+1);await refreshLibrary();
+      if(action==='cancel'&&!d.order&&!d.plan){copyParameters();setNotice('Подготовка плана отменена. Параметры сохранены.');}
+    }catch(e){setError(errorText(e));}finally{setBusy(false);}
+  };
+  const refreshStatus = async () => {
+    if(!docId||busy)return;setBusy(true);setError('');
+    try{adopt(await api.request('/documents/'+docId));setPollRevision(v=>v+1);}catch{setConnectionLost(true);}finally{setBusy(false);}
+  };
+  const copyParameters = () => {
+    setDocId(null);setActiveDoc(null);setChapters([]);setPlanPending(false);setConnectionLost(false);setError('');setProgress(0);
+    sessionStorage.removeItem('studio-delivery-document');adoptedOutline.current=null;adoptedSettings.current=null;adoptedStage.current={id:'',stage:1};
+    setStepRaw(1);setReachedStep(1);setPage('create');
+  };
+  const recoveryProps=(job:any)=>({job,order:activeDoc?.order,networkLost:connectionLost,error:error||((activeDoc?.state==='expired'||(job?.kind==='document'&&job?.status==='completed'&&!activeDoc?.delivery_id))?'Срок хранения файлов истёк. В библиотеке осталась запись; можно создать новый черновик с прежними параметрами.':''),busy,hasPlan:!!activeDoc?.plan,
+    onRetry:()=>job?void recover('retry'):void requestInitialPlan(),onRefresh:()=>void refreshStatus(),onCancel:()=>setModal('cancel-generation'),
+    onRestart:()=>void recover('restart'),onBack:()=>setStep(1),onNew:copyParameters});
   const checkout = async () => {
     setBusy(true);try {
       await api.request('/documents/'+docId+'/plan','PUT',{chapters});
@@ -1202,7 +1263,7 @@ export default function Studio() {
                           : step === 2
                             ? "Хорошая работа начинается с плана."
                             : step === 3
-                              ? progress === 100
+                              ? generationComplete
                                 ? "Работа собрана."
                                 : "Ваша работа обретает форму."
                               : "Всё на своих местах."}
@@ -1218,22 +1279,22 @@ export default function Studio() {
                           className={
                             step === i + 1
                               ? "current"
-                              : step > i + 1
+                              : reachedStep >= i + 1
                                 ? "complete"
                                 : ""
                           }
                         >
                           <ChromeButton
-                            disabled={planPending || i + 1 >= step || step === 3 || !!activeDoc?.order}
+                            disabled={i + 1 > reachedStep}
                             onClick={() => setStep(i + 1)}
                             aria-current={step === i + 1 ? "step" : undefined}
                           >
                             <span>
-                              {step > i + 1 ? <Check size={14} /> : `0${i + 1}`}
+                              {reachedStep > i + 1 && step !== i+1 ? <Check size={14} /> : `0${i + 1}`}
                             </span>
                             {label}
                           </ChromeButton>
-                          {i < 2 && <div />}
+                          {i < 2 && <div className={`step-connector ${i + 1 < step ? 'is-active' : ''}`} />}
                         </li>
                       ),
                     )}
@@ -1246,7 +1307,7 @@ export default function Studio() {
                           <h3>{tier.label}</h3>
                           <div className="summary-row">
                             <span>Объём</span>
-                            <b>~ {form.pages} страниц</b>
+                            <b>{form.pages} страниц</b>
                           </div>
                           <div className="summary-row">
                             <span>Структура</span>
@@ -1268,7 +1329,7 @@ export default function Studio() {
                           </p>
                         </div>
                       </aside>
-                      <div className="form-panel">
+                      <fieldset className="form-panel task-fields" disabled={!!activeDoc?.order || planPending}>
                         <div className="field-group">
                           <label>Что пишем?</label>
                           <div className="work-type-picker">
@@ -1353,10 +1414,10 @@ export default function Studio() {
                               <ChromeButton
                                 type="button"
                                 aria-label="Уменьшить объём"
-                                disabled={form.pages <= 1}
+                                disabled={form.pages <= minPages}
                                 onClick={() =>
                                   updateForm({
-                                    pages: Math.max(1, form.pages - 1),
+                                    pages: Math.max(minPages, form.pages - 1),
                                   })
                                 }
                               >
@@ -1365,14 +1426,14 @@ export default function Studio() {
                               <input
                                 id="work-pages"
                                 type="number"
-                                min={1}
+                                min={minPages}
                                 max={catalog?.types?.[form.type]?.max_pages || 10}
                                 value={form.pages}
                                 onChange={(e) =>
                                   updateForm({
                                     pages: Math.min(
                                       catalog?.types?.[form.type]?.max_pages || 10,
-                                      Math.max(1, Math.trunc(Number(e.target.value))),
+                                      Math.max(minPages, Math.trunc(Number(e.target.value))),
                                     ),
                                   })
                                 }
@@ -1412,6 +1473,9 @@ export default function Studio() {
                             </div>
                           </div>
                         </div>
+                        <p className="quiet-note volume-note">В объём входят титульный лист, содержание и источники. Минимум {minPages} страниц при {form.chapters} главах.</p>
+                        {activeDoc?.order && <p className="quiet-note">Заказ уже запущен. Параметры и план доступны для просмотра.</p>}
+                        <MaterialSwitch checked={!!form.include_materials} disabled={busy} onChange={value=>void changeMaterials(value)}/>
                         <details className="additional-settings">
                           <summary>
                             <SlidersHorizontal size={17} /> Требования <ChevronDown size={16} />
@@ -1441,43 +1505,35 @@ export default function Studio() {
                             {busy || activeDoc?.state === "planning" ? "Составляем AI-план…" : "Составить план бесплатно"} <ArrowRight size={17} />
                           </ChromeButton>
                         </div>
-                      </div>
+                      </fieldset>
                     </form>
                   )}
-                  {step === 2 && (planPending || !chapters.length) && <section className="plan-wait form-panel" aria-busy={planPending}>
-                    <div role="status" aria-live="polite"><AiOrb theme={theme}/><h2>{planPending ? 'Составляем ваш план' : 'План пока не готов'}</h2>
-                    <p>{planPending ? 'Подбираем главы и параграфы по вашей теме. План появится здесь автоматически.' : 'Не удалось получить план. Вернитесь к параметрам или откройте черновик позже.'}</p></div>
-                    {planPending && <div className="plan-skeleton" aria-hidden="true">{[1,2,3].map(i=><div key={i}><span/><span/><span/></div>)}</div>}
-                    {!planPending && <ChromeButton className="button button-outline" onClick={()=>setStep(1)}>К параметрам</ChromeButton>}
-                  </section>}
-                  {step === 2 && !planPending && chapters.length > 0 && (
-                    <div className="outline-grid">
+                  {step === 2 && (
+                    <div className={`outline-grid ${planLoading ? 'outline-loading' : ''}`} aria-busy={planLoading}>
                       <div className="outline-panel">
                         <div className="outline-heading">
-                          <div>
-                            <span className="eyebrow">СОДЕРЖАНИЕ</span>
-                            <h2>{title}</h2>
-                          </div>
-                          <span className="outline-count">
-                            {chapters.length} главы
-                          </span>
+                          <h2>{title}</h2>
+                          <div className="outline-searching-orb">{planLoading&&<AiOrb theme={theme} state="searching"/>}</div>
                         </div>
+                        <RecoveryNotice {...recoveryProps(planJob)}/>
+                        <fieldset className="outline-fields" disabled={planPending || busy || !!activeDoc?.order || !chapters.length}>
                         <div className="outline-fixed">
-                          <span>—</span> Введение{" "}
+                          <span>{planLoading?<Loader2 className="spin" size={15}/>:"—"}</span> Введение{" "}
                           <small>Цель, задачи, актуальность</small>
                         </div>
-                        {chapters.map((chapter, i) => (
+                        {displayedChapters.map((chapter, i) => (
                           <div className="chapter-block" key={i}>
                             <div className="chapter-heading">
                               <span className="chapter-number">0{i + 1}</span>
-                              <input
+                              <div className="outline-input-wrap"><input
                                 aria-label={`Название главы ${i + 1}`}
-                                value={chapter.title}
+                                className={planLoading ? 'outline-input-loading' : ''}
+                                value={planLoading?'':chapter.title}
                                 onChange={(e) =>
                                   editChapter(i, { title: e.target.value })
                                 }
-                              />
-                              <ChromeButton className="icon-button chapter-toggle" aria-label={`Подпункты главы ${i+1}`} aria-expanded={openChapters.includes(i)} aria-controls={`chapter-sections-${i}`} onClick={() => setOpenChapters(old => old.includes(i) ? old.filter(v => v !== i) : [...old,i])}><ChevronDown size={18}/></ChromeButton>
+                              />{planLoading&&<Loader2 className="spin outline-input-spinner" size={16}/>}</div>
+                              <ChromeButton className="icon-button chapter-toggle" aria-label={`Подпункты главы ${i+1}`} aria-expanded={openChapters.includes(i) || planPending} aria-controls={`chapter-sections-${i}`} onClick={() => setOpenChapters(old => old.includes(i) ? old.filter(v => v !== i) : [...old,i])}><ChevronDown size={18}/></ChromeButton>
                               <div className="chapter-actions">
                                 <ChromeButton
                                   className="icon-button"
@@ -1510,15 +1566,16 @@ export default function Studio() {
                                 </ChromeButton>
                               </div>
                             </div>
-                            {openChapters.includes(i) && <div className="chapter-sections" id={`chapter-sections-${i}`}>
+                            {(openChapters.includes(i) || planLoading) && <div className="chapter-sections" id={`chapter-sections-${i}`}>
                             {chapter.sections.map((section, j) => (
                               <div className="section-row" key={j}>
                                 <span>
                                   {i + 1}.{j + 1}
                                 </span>
-                                <input
+                                <div className="outline-input-wrap"><input
                                   aria-label={`Параграф ${i + 1}.${j + 1}`}
-                                  value={section}
+                                  className={planLoading ? 'outline-input-loading' : ''}
+                                  value={planLoading?'':section}
                                   onChange={(e) =>
                                     editChapter(i, {
                                       sections: chapter.sections.map((v, k) =>
@@ -1526,10 +1583,11 @@ export default function Studio() {
                                       ),
                                     })
                                   }
-                                />
+                                />{planLoading&&<Loader2 className="spin outline-input-spinner" size={15}/>}</div>
                                 <ChromeButton
                                   className="icon-button"
                                   aria-label={`Удалить параграф ${i + 1}.${j + 1}`}
+                                  disabled={chapter.sections.length <= 1}
                                   onClick={() =>
                                     editChapter(i, {
                                       sections: chapter.sections.filter(
@@ -1544,6 +1602,7 @@ export default function Studio() {
                             ))}
                             <ChromeButton
                               className="add-section"
+                              disabled={chapter.sections.length >= 4}
                               onClick={() =>
                                 editChapter(i, {
                                   sections: [
@@ -1560,7 +1619,7 @@ export default function Studio() {
                         ))}
                         <ChromeButton
                           className="add-chapter"
-                          disabled={chapters.length >= 3}
+                          disabled={chapters.length >= 3 || form.pages < 8}
                           onClick={() =>
                             setChapters((items) => [
                               ...items,
@@ -1571,34 +1630,26 @@ export default function Studio() {
                             ])
                           }
                         >
-                          <Plus size={17} /> Добавить главу
+                          {planLoading?<Loader2 className="spin" size={17}/>:<Plus size={17}/>} Добавить главу
                         </ChromeButton>
                         <div className="outline-fixed">
-                          <span>—</span> Заключение
+                          <span>{planLoading?<Loader2 className="spin" size={15}/>:"—"}</span> Заключение
                         </div>
                         <div className="outline-fixed">
-                          <span>—</span> Список источников
+                          <span>{planLoading?<Loader2 className="spin" size={15}/>:"—"}</span> Список источников
                         </div>
-                        <div className="outline-footer"><ChromeButton type="button" className="button button-outline draft-action" onClick={saveDraft}>Сохранить черновик <Download size={17}/></ChromeButton>
+                        </fieldset>
+                        <div className="outline-footer"><ChromeButton type="button" disabled={planPending || busy || !!activeDoc?.order || !chapters.length} className="button button-outline draft-action" onClick={saveDraft}>Сохранить черновик <Download size={17}/></ChromeButton>
                           <ChromeButton
                             className="text-button"
                             onClick={() => setStep(1)}
                           >
                             <ArrowLeft size={16} /> К параметрам
                           </ChromeButton>
-                          <ChromeButton
-                            className="button button-accent"
-                            disabled={busy || !chapters.length}
-                            onClick={checkout}
-                          >
-                            Оплатить и начать генерацию <ArrowRight size={17} />
-                          </ChromeButton>
                         </div>
                       </div>
                       <aside className="editor-aside">
-                        <span className="aside-mark">
-                          <List size={26} />
-                        </span>
+                        <section className="plan-rules-card">
                         <h3>
                           Ваш план.
                           <br />
@@ -1608,8 +1659,19 @@ export default function Studio() {
                           Нажмите на название, чтобы изменить его. Добавьте
                           нужные параграфы, уберите лишнее.
                         </p>
-                        <div className="aside-divider" />
-                        <small>Один AI-план на черновик. Ручные правки бесплатны.</small>
+                        <ChromeButton type="button" className="button button-outline full-width regenerate-plan-button" disabled={busy||planPending||connectionLost||!activeDoc?.can_regenerate_plan} onClick={()=>void recover('regenerate-plan')}><RefreshCw size={16}/>{activeDoc?.plan_regenerations?'Перегенерация использована':'Перегенерировать бесплатно'}</ChromeButton>
+                        <small>Одна бесплатная перегенерация на черновик. Ручные правки бесплатны.</small>
+                        {planPending&&!connectionLost&&<ChromeButton type="button" className="text-button" disabled={busy} onClick={()=>setModal('cancel-generation')}>Отменить подготовку</ChromeButton>}
+                        </section>
+                        <section className="plan-order-summary" aria-label="Стоимость работы"><h4>Ваш заказ</h4>
+                          <dl><div><dt>Тип работы</dt><dd>{tier.label}</dd></div><div><dt>Объём</dt><dd>{form.pages} страниц</dd></div><div><dt>Структура</dt><dd>{chapters.length||form.chapters} главы</dd></div><div><dt>Формат</dt><dd>Word и PDF</dd></div></dl>
+                          <MaterialSwitch checked={!!form.include_materials} disabled={busy||planPending||!!activeDoc?.order||!chapters.length} onChange={value=>void changeMaterials(value)}/>
+                          <div className="plan-price-row"><span>Работа</span><b>{money(basePrice)} ₽</b></div>
+                          {materialsPrice>0&&<div className="plan-price-row"><span>Материалы · 10%</span><b>+{money(materialsPrice)} ₽</b></div>}
+                          <div className="plan-price-total"><span>Итого</span><strong>{money(activeDoc?.order?.amount_kopecks??totalPrice)} ₽</strong></div>
+                          <small>Цена подтверждается до оплаты. При продолжении остановленного заказа повторная оплата не нужна.</small>
+                          <ChromeButton type="button" className="button button-accent plan-checkout-button" disabled={busy||planPending||!chapters.length} onClick={()=>activeDoc?.order?setStep(3):checkout()}>{activeDoc?.order?'К генерации':'Оплатить и перейти к генерации'}<ArrowRight size={17}/></ChromeButton>
+                        </section>
                       </aside>
                     </div>
                   )}
@@ -1624,16 +1686,17 @@ export default function Studio() {
                       </div>
                       <div className="generation-info">
                         <div className="eyebrow">
-                          {generationFailed ? "ГЕНЕРАЦИЯ ОСТАНОВЛЕНА" : progress === 100
+                          {generationFailed ? "ПОДГОТОВКА ПРИОСТАНОВЛЕНА" : generationComplete
                             ? "МОЖНО ОТКРЫВАТЬ"
                             : "СОБИРАЕМ ВАШ ДОКУМЕНТ"}
                         </div>
                         <h2>
-                          {generationFailed ? "Не удалось завершить работу." : progress === 100
+                          {generationFailed ? "Выберите следующий шаг." : generationComplete
                             ? "Последняя точка поставлена."
                             : "От главы к главе."}
                         </h2>
                         <p className="generation-topic">{title}</p>
+                        <RecoveryNotice {...recoveryProps(generationJob)}/>
                         <div
                           className="progress-track"
                           role="progressbar"
@@ -1656,7 +1719,7 @@ export default function Studio() {
                               className={
                                 progress >= generationThresholds[i]
                                   ? "done"
-                                  : !generationFailed && progress >= (i ? generationThresholds[i-1] : 0)
+                                  : !generationFailed && !generationWaiting && progress >= (i ? generationThresholds[i-1] : 0)
                                     ? "working"
                                     : ""
                               }
@@ -1664,7 +1727,7 @@ export default function Studio() {
                               <span>
                                 {progress >= generationThresholds[i] ? (
                                   <Check size={14} />
-                                ) : !generationFailed && progress >= (i ? generationThresholds[i-1] : 0) ? (
+                                ) : !generationFailed && !generationWaiting && progress >= (i ? generationThresholds[i-1] : 0) ? (
                                   <Loader2 className="spin" size={14} />
                                 ) : (
                                   `0${i + 1}`
@@ -1674,18 +1737,19 @@ export default function Studio() {
                             </div>
                           ))}
                         </div>
-                        {progress === 100 ? (
+                        {generationComplete ? (
                           <div className="generation-actions"><ChromeButton
                             className="button button-accent"
                             onClick={() => window.open(deliveryUrl("pdf",true),"_blank","noopener")}
                           >
                             Посмотреть PDF <ArrowRight size={17} />
                           </ChromeButton><ChromeButton className="button button-outline" onClick={() => setModal("download")}><Download size={17}/> Скачать работу</ChromeButton></div>
-                        ) : (
+                        ) : !generationFailed && !generationWaiting ? (
                           <p className="muted small">
-                            {generationJob?.status==='retry' && generationJob?.error==='local_token_rate_limit' ? 'Пауза для соблюдения лимитов API. Продолжим автоматически' : statuses[generationJob?.status] || "В очереди"} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.current_section} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.completed_units || 0}/{activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.total_units || 0}
+                            {generationJob?.status==='queued'?'Заказ в очереди. Продолжим автоматически.':'Подготавливаем следующий раздел. Уже готовое сохранено.'}
                           </p>
-                        )}
+                        ) : null}
+                        {!generationFailed&&!generationWaiting&&generationJob?.recovery?.can_cancel&&<ChromeButton type="button" className="text-button" disabled={busy} onClick={()=>setModal('cancel-generation')}>Отменить подготовку</ChromeButton>}
                       </div>
                     </div>
                   )}
@@ -1784,7 +1848,7 @@ export default function Studio() {
                           <div className="work-row" key={work.id}>
                             <ChromeButton
                               className="work-title"
-                              disabled={work.status !== "draft"}
+                              disabled={work.status === 'ready'}
                               onClick={() => openWork(work)}
                             >
                               <span
@@ -2045,7 +2109,7 @@ export default function Studio() {
                 </>
               )}
             </main>
-            {error && step !== 1 && <p className="form-error" role="alert">{error}</p>}
+            {error && page !== 'create' && <p className="form-error" role="alert">{error}</p>}
             {activeDoc?.delivery_id && step === 3 && <p className="quiet-note">Сохраните оба файла до {new Date(activeDoc.expires*1000).toLocaleString("ru-RU")}. Заказано {form.pages}, фактически {activeDoc.actual_pages} стр. в PDF.</p>}
             <footer className="workspace-footer">
               <span>ГОСТ docx © 2026</span>
@@ -2155,6 +2219,12 @@ export default function Studio() {
       <Modal open={modal === 'topup'} onClose={()=>setModal(null)} title="Ваши кредиты">
         <p>Доступно {money(account?.available || 0)}. В резерве {money(account?.reserved || 0)}. Долг {money(account?.debt || 0)}.</p>
         <p>Кредиты начисляются за успешные рублёвые заказы и приглашения. Покупка, вывод и передача недоступны.</p>
+      </Modal>
+      <Modal open={modal === 'cancel-generation'} onClose={()=>{if(!busy)setModal(null);}} title="Отменить подготовку?">
+        <p className="modal-description">Подготовка будет остановлена. Параметры и сохранённый план останутся доступны. Для оплаченного заказа оформим возврат или освободим зарезервированные кредиты.</p>
+        {activeDoc?.order?.payment_mode==='personal_mock'&&<p className="quiet-note">Это тестовый заказ: реальные деньги не списывались.</p>}
+        {error&&<p className="form-error" role="alert">{error}</p>}
+        <div className="logout-actions"><ChromeButton type="button" className="button button-outline" disabled={busy} autoFocus onClick={()=>setModal(null)}>Остаться</ChromeButton><ChromeButton type="button" className="button button-ink" disabled={busy} onClick={()=>void recover('cancel')}>{busy?'Отменяем…':'Отменить подготовку'}</ChromeButton></div>
       </Modal>
       <Modal open={modal === 'logout'} onClose={()=>{if(!busy)setModal(null);}} title="Выйти из аккаунта?">
         <p className="modal-description">Вы действительно хотите выйти? Сохранённые черновики останутся в аккаунте.</p>

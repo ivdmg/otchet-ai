@@ -16,6 +16,7 @@ fixture = json.loads((cfg.DATA_DIR / 'seed-accounts.json').read_text())
 parser = argparse.ArgumentParser()
 parser.add_argument('--run-id', default='review-small-20261103')
 parser.add_argument('--account', type=int, choices=range(6), default=1)
+parser.add_argument('--pages', type=int, default=7)
 args = parser.parse_args()
 assert args.run_id.replace('-', '').isalnum(), 'Use an alphanumeric run ID'
 target = cfg.DATA_DIR / (args.run_id + '.json')
@@ -31,8 +32,8 @@ with httpx.Client(base_url='http://127.0.0.1:8000/api/v1', headers={'X-Prototype
     login = call('POST', '/auth/login', {'email':fixture['accounts'][args.account]['email'], 'password':fixture['password']})
     client.headers['X-CSRF-Token'] = login['csrf_token']
     if not state:
-        draft = call('POST', '/documents', {'topic':'Резервное копирование учебных данных', 'doc_type':'abstract', 'pages':3, 'chapters':2, 'subject':'Информатика', 'notes':'Краткий обзор принципов резервного копирования.', 'anonymized':True})
-        state.update(document_id=draft['document_id'], requested_pages=3, provider=cfg.AI_PROVIDER, model=cfg.ai_model)
+        draft = call('POST', '/documents', {'topic':'Резервное копирование учебных данных', 'doc_type':'abstract', 'pages':args.pages, 'chapters':2, 'subject':'Информатика', 'notes':'Краткий обзор принципов резервного копирования.', 'anonymized':True})
+        state.update(document_id=draft['document_id'], requested_pages=args.pages, provider=cfg.AI_PROVIDER, model=cfg.ai_model)
         save()
     last = None
     for _ in range(300):
@@ -65,7 +66,8 @@ with httpx.Client(base_url='http://127.0.0.1:8000/api/v1', headers={'X-Prototype
                     state['text_characters'] = sum(map(len,paragraphs))
                     assert state['text_characters'] > 400
             save()
-            print('PASS: real AI, mock checkout, DOCX/PDF; requested=3 actual='+str(d['actual_pages']), flush=True)
+            assert d['actual_pages'] == state['requested_pages']
+            print('PASS: real AI, mock checkout, DOCX/PDF; requested='+str(state['requested_pages'])+' actual='+str(d['actual_pages']), flush=True)
             break
         time.sleep(3)
     else:
