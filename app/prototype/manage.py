@@ -75,6 +75,7 @@ def main():
     elif args.command == 'status':
         with DB() as db:
             print(json.dumps({'mode':cfg.APP_ENV,'db':'PostgreSQL','storage':cfg.STORAGE,
+                  'ai_provider':cfg.AI_PROVIDER,'ai_model':cfg.ai_model,'ai_key_set':bool(cfg.ai_key),
                   'groq_key_set':bool(cfg.GROQ_API_KEY),'yukassa_test_key_set':bool(cfg.YUKASSA_SHOP_ID and cfg.YUKASSA_SECRET_KEY.startswith('test_')),
                   'jobs':dict(db.execute(select(Job.state,func.count()).group_by(Job.state)).all()),
                   'orders':dict(db.execute(select(Order.state,func.count()).group_by(Order.state)).all())},indent=2))

@@ -36,6 +36,9 @@ import {
   Home as HomeIcon,
   PanelRightOpen,
   PanelRightClose,
+  UserRound,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { useUserStore } from "../store/useUserStore";
 import { ChromeButton, ChromeTitle, ChromeTheme } from "./Chrome";
@@ -79,7 +82,7 @@ type Work = {
   type: WorkType;
   pages: number;
   date: string;
-  status: "ready" | "draft";
+  status: "ready" | "draft" | "failed" | "processing";
   chapters?: Chapter[];
   actualPages?: number;
   serverState?: string;
@@ -729,10 +732,15 @@ export default function Studio() {
   const [works, setWorks] = useState<Work[]>([]);
   const [api] = useState(() => new PrototypeApi(() => {}));
   const adoptedOutline = useRef<string | null>(null);
+  const adoptedSettings = useRef<string | null>(null);
   const [account, setAccount] = useState<any>(null);
   const [catalog, setCatalog] = useState<any>(null);
   const [activeDoc, setActiveDoc] = useState<any>(null);
   const [docId, setDocId] = useState<string | null>(() => sessionStorage.getItem('studio-delivery-document'));
+  const [signedIn, setSignedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authName, setAuthName] = useState('');
+  const [planPending, setPlanPending] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login'|'register'|'verify'>('login');
@@ -746,7 +754,7 @@ export default function Studio() {
   const [zoom, setZoom] = useState(100);
   const [guides, setGuides] = useState(false);
   const [modal, setModal] = useState<
-    "login" | "payment" | "download" | "topup" | "preview" | "regenerate" | "reset-password" | null
+    "login" | "logout" | "payment" | "download" | "topup" | "preview" | "regenerate" | "reset-password" | null
   >(null);
   const [format, setFormat] = useState<"docx" | "pdf">("docx");
   const [busy, setBusy] = useState(false);
@@ -772,6 +780,9 @@ export default function Studio() {
   const selectedType = TYPES.find((item) => item.id === form.type)!;
   const tier = {...selectedType,price:catalog?.types?.[form.type]?.price / 100 || selectedType.price};
   const title = form.title || demoTitle;
+  const generationJob = activeDoc?.jobs?.find((j:any)=>j.kind==='document');
+  const generationFailed = generationJob?.status==='failed';
+  const generationThresholds = [5,75,85,100];
   useEffect(() => {
     document.title = "ГОСТ docx — от темы к готовой работе";
   }, []);
@@ -828,12 +839,35 @@ export default function Studio() {
       return () => clearTimeout(timer);
     }
   }, [notice]);
+  const clearSession = () => {
+    api.csrf='';setSignedIn(false);setWorks([]);setAccount(null);setActiveDoc(null);setDocId(null);
+    setChapters([]);setApproval(null);setProgress(0);setPlanPending(false);
+    sessionStorage.removeItem('studio-delivery-document');
+    useUserStore.setState({user:{...user,id:'',name:'',email:'',credits:0,referralCode:'',referrals:[],referralSignups:0,referralEarnedCredits:0,titleDefaults:{university:'',faculty:'',department:'',specialty:'',city:'',course:'',group:'',studentName:'',supervisor:''}}});
+  };
+  api.expired = () => {clearSession();setModal('login');};
+  const applyUser = (u:any) => {
+    const defaults = {university:'',faculty:'',department:'',specialty:'',city:'',course:'',group:'',studentName:'',supervisor:'',...u.title_defaults};
+    const name = u.name || u.email.split('@')[0];
+    updateProfile({id:u.id,email:u.email,name,credits:0,referrals:[],titleDefaults:defaults});
+    setProfile({name,email:u.email,...defaults});setSignedIn(true);
+  };
+  const logout = async () => {
+    setBusy(true);setError('');try {await api.request('/auth/logout','POST');clearSession();setModal(null);setNotice('Вы вышли из аккаунта');}
+    catch(e){setError(errorText(e));}finally{setBusy(false);}
+  };
+  const saveProfile = async (e:React.FormEvent) => {
+    e.preventDefault();setBusy(true);setError('');
+    try {const {name,email,...title_defaults}=profile;
+      const r=await api.request<any>('/auth/profile','PUT',{name,title_defaults});applyUser(r.user);await refreshLibrary();setNotice('Изменения сохранены');
+    }catch(e){setError(errorText(e));}finally{setBusy(false);}
+  };
   const refreshLibrary = async () => {
     const result = await api.request<any>('/documents');
     setWorks(result.items.filter((d:any) => d.state !== 'archived').map((d:any) => ({
       id:d.id,title:d.topic,type:d.doc_type,pages:d.requested_pages || d.settings?.pages || 0,
       actualPages:d.actual_pages,date:new Date(d.created*1000).toLocaleDateString('ru-RU'),
-      status:['draft','planning','plan_ready','approved'].includes(d.state) ? 'draft':'ready',
+      status:['draft','planning','plan_ready','approved'].includes(d.state) ? 'draft':d.state==='completed'?'ready':d.state==='failed'?'failed':'processing',
       serverState:d.state,chapters:d.plan?.chapters,subject:d.settings?.subject,notes:d.settings?.notes,
     })));
     const balance = await api.request<any>('/referrals');
@@ -843,44 +877,48 @@ export default function Studio() {
   };
   const adopt = (d:any) => {
     setActiveDoc(d);
-    if (d.settings?.pages) setForm({...initialForm,...d.settings,title:d.topic,type:d.doc_type,file:null});
+    setPlanPending(d.state==='planning');
+    if(d.state==='planning') setStep(2);
+    if (d.settings?.pages && adoptedSettings.current !== d.id) {setForm({...initialForm,...d.settings,title:d.topic,type:d.doc_type,file:null});adoptedSettings.current=d.id;}
     if (d.plan?.chapters && adoptedOutline.current !== d.id) {setChapters(d.plan.chapters);adoptedOutline.current=d.id;setStep(2);}
     const job = d.jobs.find((j:any) => j.kind==='document') || d.jobs.find((j:any)=>j.kind==='plan');
     if (job?.kind==='document') {setStep(3);setProgress(job.percent);}
 
     if(d.state==='expired') setError('Срок выдачи истёк. Файлы и текст удалены; сохранена только запись о работе.');
-    if (job?.status==='failed') setError((statuses[d.order?.state] || 'Генерация не завершена')+': '+job.error);
+    if (job?.status==='failed') setError((statuses[d.order?.state] || 'Генерация не завершена')+': '+(job.error==='ai_access_denied' ? 'Groq отклонил запрос генерации (HTTP 403). Попробуйте позже; деньги не списаны.' : job.error));
   };
   useEffect(() => {
     const requestedAuth = new URLSearchParams(location.search).get('auth');
     if(requestedAuth==='login' || requestedAuth==='register') {setAuthMode(requestedAuth);setModal('login');}
     api.request<any>('/catalog').then(setCatalog).catch(e=>setError(errorText(e)));
     api.request<any>('/auth/me').then(async r=>{
-      api.csrf=r.csrf_token;updateProfile({email:r.user.email,credits:0,referrals:[]});await refreshLibrary();
+      api.csrf=r.csrf_token;applyUser(r.user);await refreshLibrary();
       if(docId) {adopt(await api.request('/documents/'+docId));setPage('create');}
-    }).catch(()=>updateProfile({credits:0,referrals:[]}));
+    }).catch(()=>clearSession()).finally(()=>setAuthChecked(true));
     const ref = new URLSearchParams(location.search).get('ref');
     if(ref) api.request('/referrals/capture/'+encodeURIComponent(ref)).catch(()=>{});
   },[]);
   useEffect(() => {
     if(!docId || !api.csrf) return;
     let disposed=false;
+    let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {try {
       const d = await api.request<any>('/documents/'+docId);
       if(disposed) return;
       adopt(d);
       if(['completed','failed','expired'].includes(d.state)) await refreshLibrary();
-    } catch(e) {if(!disposed) setError(errorText(e));}};
-    poll(); const timer=setInterval(poll,2500);
-    return ()=>{disposed=true;clearInterval(timer);};
-  },[docId,api.csrf]);
+      if(!disposed && ['planning','generating','ordered'].includes(d.state)) timer=setTimeout(poll,2500);
+    } catch(e) {if(!disposed) {setError(errorText(e));timer=setTimeout(poll,5000);}}};
+    poll();
+    return ()=>{disposed=true;clearTimeout(timer);};
+  },[docId,signedIn,activeDoc?.order?.id]);
   const input = () => ({topic:form.title,doc_type:form.type,pages:form.pages,chapters:form.chapters,
     subject:form.subject,notes:form.notes,anonymized:true,input_version:catalog?.version});
   const requireLogin = () => {if(!api.csrf){setModal('login');return false;}return true;};
   const switchAuth = (mode:'login'|'register'|'verify') => {setAuthMode(mode);setError('');setConfirmPassword('');};
   const signIn = async () => {
     const r=await api.request<any>('/auth/login','POST',{email:authEmail.trim(),password:authPassword});
-    api.csrf=r.csrf_token;setAuthPassword('');setConfirmPassword('');updateProfile({email:r.user.email});
+    api.csrf=r.csrf_token;setAuthPassword('');setConfirmPassword('');applyUser(r.user);
     setDocId(null);setActiveDoc(null);setChapters([]);setStep(1);setProgress(0);adoptedOutline.current=null;
     sessionStorage.removeItem('studio-delivery-document');
     const cleanAuthUrl = new URL(location.href);cleanAuthUrl.searchParams.delete('auth');
@@ -893,7 +931,8 @@ export default function Studio() {
     setBusy(true);
     try {
       if(authMode==='register') {
-        const r=await api.request<any>('/auth/register','POST',{email:authEmail.trim(),password:authPassword});
+        const r=await api.request<any>('/auth/register','POST',{email:authEmail.trim(),password:authPassword,name:authName.trim()});
+        if(r.verified){await signIn();return;}
         setRegisteredId(r.id);sessionStorage.setItem('studio-pending-verification',r.id);
         setAuthMode('verify');setConfirmPassword('');setVerificationToken('');
       } else if(authMode==='verify') {
@@ -952,19 +991,19 @@ export default function Studio() {
     }catch(e){setError(errorText(e));}finally{setBusy(false);}
   };
   const makePlan = async (event:React.FormEvent) => {
-    event.preventDefault();if(!requireLogin()) return;setBusy(true);setError('');
+    event.preventDefault();if(!requireLogin()) return;setBusy(true);setError('');setPlanPending(true);setStep(2);
     try {
       if(docId && activeDoc?.plan){setStep(2);return;}
       const d=docId ? await api.request<any>('/documents/'+docId+'/generate-plan','POST') : await api.request<any>('/documents','POST',input());
       setDocId(d.document_id);sessionStorage.setItem('studio-delivery-document',d.document_id);
-      setNotice('Составляем план. Можно дождаться на этой странице.');
-    }catch(e){setError(errorText(e));}finally{setBusy(false);}
+      setActiveDoc(await api.request('/documents/'+d.document_id));
+    }catch(e){setPlanPending(false);setError(errorText(e));}finally{setBusy(false);}
   };
   const checkout = async () => {
     setBusy(true);try {
       await api.request('/documents/'+docId+'/plan','PUT',{chapters});
       const q=await api.request<any>('/documents/'+docId+'/approve','POST');
-      setApproval(q);setForm(old=>({...old,chapters:chapters.length}));await refreshLibrary();setModal('payment');
+      setApproval(q);setPaymentMethod('cash');setError('');setForm(old=>({...old,chapters:chapters.length}));await refreshLibrary();setModal('payment');
     }catch(e){setError(errorText(e));}finally{setBusy(false);}
   };
   const pay = async () => {
@@ -1006,20 +1045,21 @@ export default function Studio() {
               id="workspace-tools"
               aria-label="Панель рабочего пространства"
             >
-              <div className="sidebar-identity"><ChromeButton
+              <div className={`sidebar-identity sidebar-account ${signedIn ? 'is-signed-in' : 'is-guest'}`}>{!signedIn && <div className="sidebar-guest"><UserRound size={18} aria-hidden="true"/><span><b>Гостевой режим</b><small>Войдите, чтобы сохранять черновики</small></span></div>}<ChromeButton
                   className="sidebar-user"
-                  onClick={() => navigate("profile")}
+                  disabled={!authChecked}
+                  onClick={() => signedIn ? navigate("profile") : setModal("login")}
                 >
-                  <span className="avatar">
-                    {user.name
+                  {signedIn ? <span className="avatar" aria-hidden="true">
+                    {user.name.trim()
                       .split(" ")
                       .map((v) => v[0])
                       .slice(0, 2)
                       .join("")}
-                  </span>
+                  </span> : <LogIn size={18} aria-hidden="true"/>}
                   <span>
-                    <b>{user.name}</b>
-                    <small>Личный кабинет</small>
+                    <b>{signedIn ? user.name : authChecked ? "Войти или создать аккаунт" : "Проверяем вход…"}</b>
+                    {signedIn && <small title={user.email}>{user.email}</small>}
                   </span>
                   <ChevronRight size={15} />
                 </ChromeButton>
@@ -1136,7 +1176,7 @@ export default function Studio() {
               </ChromeButton>
               <ChromeButton
                 className={page === "profile" ? "active" : ""}
-                onClick={() => navigate("profile")}
+                onClick={() => signedIn ? navigate("profile") : setModal("login")}
               >
                 <Settings2 size={17} /> Профиль
               </ChromeButton>
@@ -1144,6 +1184,13 @@ export default function Studio() {
             <main
               className="workspace-main"
             >
+              {['library','profile','referrals'].includes(page) && !signedIn && <section className="access-gate form-panel">
+                <span className="aside-mark"><FileText size={28}/></span>
+                <div className="eyebrow">ВАШЕ ПРОСТРАНСТВО</div>
+                <h1>{authChecked ? 'Войдите, чтобы продолжить' : 'Проверяем вход…'}</h1>
+                <p>{page==='referrals' ? 'Ваша ссылка, приглашения и бонусы появятся после входа.' : 'Работы и личные данные доступны только в вашем аккаунте. Создайте его, чтобы сохранять планы и возвращаться к ним.'}</p>
+                <div className="gate-actions"><ChromeButton disabled={!authChecked} className="button button-accent" onClick={()=>{switchAuth('login');setModal('login');}}>Войти</ChromeButton><ChromeButton disabled={!authChecked} className="button button-outline" onClick={()=>{switchAuth('register');setModal('login');}}>Создать аккаунт</ChromeButton></div>
+              </section>}
               {page === "create" && (
                 <>
                   <div className="page-heading">
@@ -1177,7 +1224,7 @@ export default function Studio() {
                           }
                         >
                           <ChromeButton
-                            disabled={i + 1 >= step || step === 3 || !!activeDoc?.order}
+                            disabled={planPending || i + 1 >= step || step === 3 || !!activeDoc?.order}
                             onClick={() => setStep(i + 1)}
                             aria-current={step === i + 1 ? "step" : undefined}
                           >
@@ -1397,7 +1444,13 @@ export default function Studio() {
                       </div>
                     </form>
                   )}
-                  {step === 2 && (
+                  {step === 2 && (planPending || !chapters.length) && <section className="plan-wait form-panel" aria-busy={planPending}>
+                    <div role="status" aria-live="polite"><AiOrb theme={theme}/><h2>{planPending ? 'Составляем ваш план' : 'План пока не готов'}</h2>
+                    <p>{planPending ? 'Подбираем главы и параграфы по вашей теме. План появится здесь автоматически.' : 'Не удалось получить план. Вернитесь к параметрам или откройте черновик позже.'}</p></div>
+                    {planPending && <div className="plan-skeleton" aria-hidden="true">{[1,2,3].map(i=><div key={i}><span/><span/><span/></div>)}</div>}
+                    {!planPending && <ChromeButton className="button button-outline" onClick={()=>setStep(1)}>К параметрам</ChromeButton>}
+                  </section>}
+                  {step === 2 && !planPending && chapters.length > 0 && (
                     <div className="outline-grid">
                       <div className="outline-panel">
                         <div className="outline-heading">
@@ -1535,7 +1588,7 @@ export default function Studio() {
                           </ChromeButton>
                           <ChromeButton
                             className="button button-accent"
-                            disabled={busy}
+                            disabled={busy || !chapters.length}
                             onClick={checkout}
                           >
                             Оплатить и начать генерацию <ArrowRight size={17} />
@@ -1571,12 +1624,12 @@ export default function Studio() {
                       </div>
                       <div className="generation-info">
                         <div className="eyebrow">
-                          {progress === 100
+                          {generationFailed ? "ГЕНЕРАЦИЯ ОСТАНОВЛЕНА" : progress === 100
                             ? "МОЖНО ОТКРЫВАТЬ"
                             : "СОБИРАЕМ ВАШ ДОКУМЕНТ"}
                         </div>
                         <h2>
-                          {progress === 100
+                          {generationFailed ? "Не удалось завершить работу." : progress === 100
                             ? "Последняя точка поставлена."
                             : "От главы к главе."}
                         </h2>
@@ -1601,17 +1654,17 @@ export default function Studio() {
                             <div
                               key={label}
                               className={
-                                progress >= (i + 1) * 25
+                                progress >= generationThresholds[i]
                                   ? "done"
-                                  : progress >= i * 25
+                                  : !generationFailed && progress >= (i ? generationThresholds[i-1] : 0)
                                     ? "working"
                                     : ""
                               }
                             >
                               <span>
-                                {progress >= (i + 1) * 25 ? (
+                                {progress >= generationThresholds[i] ? (
                                   <Check size={14} />
-                                ) : progress >= i * 25 ? (
+                                ) : !generationFailed && progress >= (i ? generationThresholds[i-1] : 0) ? (
                                   <Loader2 className="spin" size={14} />
                                 ) : (
                                   `0${i + 1}`
@@ -1630,7 +1683,7 @@ export default function Studio() {
                           </ChromeButton><ChromeButton className="button button-outline" onClick={() => setModal("download")}><Download size={17}/> Скачать работу</ChromeButton></div>
                         ) : (
                           <p className="muted small">
-                            {statuses[activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.status] || "В очереди"} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.current_section} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.completed_units || 0}/{activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.total_units || 0}
+                            {generationJob?.status==='retry' && generationJob?.error==='local_token_rate_limit' ? 'Пауза для соблюдения лимитов API. Продолжим автоматически' : statuses[generationJob?.status] || "В очереди"} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.current_section} · {activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.completed_units || 0}/{activeDoc?.jobs?.find((j:any)=>j.kind === "document")?.total_units || 0}
                           </p>
                         )}
                       </div>
@@ -1638,7 +1691,7 @@ export default function Studio() {
                   )}
                 </>
               )}
-              {page === "library" && (
+              {page === "library" && signedIn && (
                 <>
                   <div className="page-heading">
                     <div>
@@ -1731,7 +1784,7 @@ export default function Studio() {
                           <div className="work-row" key={work.id}>
                             <ChromeButton
                               className="work-title"
-                              disabled={work.status === "ready"}
+                              disabled={work.status !== "draft"}
                               onClick={() => openWork(work)}
                             >
                               <span
@@ -1806,7 +1859,7 @@ export default function Studio() {
                   </div>
                 </>
               )}
-              {page === "profile" && (
+              {page === "profile" && signedIn && (
                 <>
                   <div className="page-heading">
                     <div>
@@ -1830,22 +1883,14 @@ export default function Studio() {
                           <ChevronRight size={15} />
                         </ChromeButton>
                       ))}
+                      <ChromeButton type="button" className="profile-logout" disabled={busy} onClick={()=>{setError('');setModal('logout');}}><LogOut size={17} aria-hidden="true"/>Выйти из аккаунта</ChromeButton>
                       <ChromeButton onClick={() => setPage("referrals")}>
                         Пригласить друзей <ArrowUpRight size={15} />
                       </ChromeButton>
                     </div>
                     <form
                       className="profile-form form-panel"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        updateProfile({
-                          name: profile.name,
-                          email: profile.email,
-                        });
-                        const { name, email, ...defaults } = profile;
-                        updateTitleDefaults(defaults);
-                        setNotice("Изменения сохранены");
-                      }}
+                      onSubmit={saveProfile}
                     >
                       <h2>
                         {accountTab === "personal"
@@ -1890,10 +1935,10 @@ export default function Studio() {
                       {accountTab === "personal" && <div className="account-settings">
                         <div className="field-group"><label htmlFor="account-email">Текущая почта</label><input id="account-email" type="email" value={user.email} readOnly autoComplete="email"/></div>
                         <details className="account-detail"><summary>Изменить почту <ChevronDown size={17}/></summary><div className="field-group"><label htmlFor="new-account-email">Новая почта</label><input id="new-account-email" type="email" autoComplete="off" value={pendingEmail} onChange={e=>setPendingEmail(e.target.value)} placeholder="name@example.ru"/></div><p className="quiet-note">На новый адрес потребуется отправить письмо с подтверждением. Сейчас доступен только интерфейс.</p><ChromeButton type="button" className="button button-outline" disabled={!pendingEmail.includes("@")} onClick={()=>setNotice("Демо: отправка подтверждения почты пока не подключена")}>Подтвердить новую почту</ChromeButton></details>
-                        <details className="account-detail"><summary>Изменить пароль <ChevronDown size={17}/></summary><div className="field-group"><label htmlFor="current-password">Текущий пароль</label><input id="current-password" type="password" autoComplete="current-password"/></div><div className="field-group"><label htmlFor="new-password">Новый пароль</label><input id="new-password" type="password" autoComplete="new-password" minLength={8}/></div><div className="field-group"><label htmlFor="confirm-password">Повторите новый пароль</label><input id="confirm-password" type="password" autoComplete="new-password"/></div><p className="quiet-note">Не менее 8 символов. Изменение пароля подключим позже.</p><ChromeButton type="button" className="button button-outline" onClick={()=>setNotice("Демо: изменение пароля пока не подключено")}>Обновить пароль</ChromeButton><ChromeButton type="button" className="text-button recovery-link" onClick={()=>setModal("reset-password")}>Не помню текущий пароль</ChromeButton></details>
+                        <details className="account-detail"><summary>Изменить пароль <ChevronDown size={17}/></summary><div className="field-group"><label htmlFor="current-password">Текущий пароль</label><input id="current-password" type="password" autoComplete="current-password"/></div><div className="field-group"><label htmlFor="new-password">Новый пароль</label><input id="new-password" type="password" autoComplete="new-password" minLength={8}/></div><div className="field-group"><label htmlFor="confirm-password">Повторите новый пароль</label><FeaturedCard theme={theme}><input id="confirm-password" type="password" autoComplete="new-password"/></FeaturedCard></div><p className="quiet-note">Не менее 8 символов. Изменение пароля подключим позже.</p><ChromeButton type="button" className="button button-outline" onClick={()=>setNotice("Демо: изменение пароля пока не подключено")}>Обновить пароль</ChromeButton><ChromeButton type="button" className="text-button recovery-link" onClick={()=>setModal("reset-password")}>Не помню текущий пароль</ChromeButton></details>
                         <ChromeButton type="button" className="text-button recovery-link" onClick={()=>setModal("reset-password")}>Забыли пароль?</ChromeButton>
                       </div>}
-                      <ChromeButton className="button button-ink" type="submit">
+                      <ChromeButton disabled={busy} className="button button-ink" type="submit">
                         Сохранить изменения <Check size={17} />
                       </ChromeButton>
                       {accountTab === "personal" && (
@@ -1932,7 +1977,7 @@ export default function Studio() {
                   </div>
                 </>
               )}
-              {page === "referrals" && (
+              {page === "referrals" && signedIn && (
                 <>
                   <div className="page-heading">
                     <div>
@@ -2111,16 +2156,26 @@ export default function Studio() {
         <p>Доступно {money(account?.available || 0)}. В резерве {money(account?.reserved || 0)}. Долг {money(account?.debt || 0)}.</p>
         <p>Кредиты начисляются за успешные рублёвые заказы и приглашения. Покупка, вывод и передача недоступны.</p>
       </Modal>
+      <Modal open={modal === 'logout'} onClose={()=>{if(!busy)setModal(null);}} title="Выйти из аккаунта?">
+        <p className="modal-description">Вы действительно хотите выйти? Сохранённые черновики останутся в аккаунте.</p>
+        {error && <p role="alert" className="form-error">{error}</p>}
+        <div className="logout-actions">
+          <ChromeButton type="button" className="button button-outline" disabled={busy} autoFocus onClick={()=>setModal(null)}>Остаться</ChromeButton>
+          <ChromeButton type="button" className="button button-ink" disabled={busy} onClick={logout}><LogOut size={17} aria-hidden="true"/>{busy?'Выходим…':'Выйти'}</ChromeButton>
+        </div>
+      </Modal>
       <Modal open={modal === 'login'} onClose={()=>setModal(null)} title={authMode==='register'?'Создать аккаунт':authMode==='verify'?'Подтвердить почту':'Войти в аккаунт'}>
-        <form onSubmit={authenticate}>
+        <form onSubmit={authenticate} className="auth-form">
+          <p className="modal-description">{authMode==='register' ? ('Сохраняйте планы, следите за работами и приглашайте друзей.' + (catalog?.mock_email ? ' В тестовом режиме почта подтверждается автоматически.' : ' После регистрации подтвердите почту.')) : 'Ваши работы, настройки и бонусы в одном месте.'}</p>
           {authMode!=='verify' ? <>
-            <div className="field-group"><label htmlFor="login-email">Email</label><input id="login-email" type="email" autoComplete="username" required maxLength={254} value={authEmail} onChange={e=>setAuthEmail(e.target.value)}/></div>
-            <div className="field-group"><label htmlFor="login-password">Пароль</label><input id="login-password" type="password" autoComplete={authMode==='register'?'new-password':'current-password'} required minLength={12} maxLength={128} value={authPassword} onChange={e=>setAuthPassword(e.target.value)}/>{authMode==='register' && <small>От 12 символов.</small>}</div>
-            {authMode==='register' && <div className="field-group"><label htmlFor="confirm-password">Повторите пароль</label><input id="confirm-password" type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/></div>}
+            {authMode==='register' && <div className="field-group"><label htmlFor="register-name">Логин / имя</label><FeaturedCard theme={theme}><input id="register-name" autoComplete="nickname" required maxLength={80} value={authName} onChange={e=>setAuthName(e.target.value)} placeholder="Как к вам обращаться"/></FeaturedCard></div>}
+            <div className="field-group"><label htmlFor="login-email">Email</label><FeaturedCard theme={theme}><input id="login-email" type="email" autoComplete="username" required maxLength={254} value={authEmail} onChange={e=>setAuthEmail(e.target.value)}/></FeaturedCard></div>
+            <div className="field-group"><label htmlFor="login-password">Пароль</label><FeaturedCard theme={theme}><input id="login-password" type="password" autoComplete={authMode==='register'?'new-password':'current-password'} required minLength={12} maxLength={128} value={authPassword} onChange={e=>setAuthPassword(e.target.value)}/></FeaturedCard>{authMode==='register' && <small>От 12 символов.</small>}</div>
+            {authMode==='register' && <div className="field-group"><label htmlFor="confirm-password">Повторите пароль</label><FeaturedCard theme={theme}><input id="confirm-password" type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/></FeaturedCard></div>}
           </> : <>
             <p className="modal-description">Аккаунт создан. Подтвердите почту, чтобы войти.</p>
             <p className="quiet-note">В локальном тесте письма не отправляются. Код подтверждения сохранён в папке проекта{registeredId ? <>: <code style={{overflowWrap:'anywhere'}}>.local/private/mail/{registeredId}-verify.txt</code></> : ' в .local/private/mail/'}.</p>
-            <div className="field-group"><label htmlFor="verification-token">Код подтверждения</label><input id="verification-token" type="text" autoComplete="one-time-code" required minLength={20} maxLength={128} value={verificationToken} onChange={e=>setVerificationToken(e.target.value)}/></div>
+            <div className="field-group"><label htmlFor="verification-token">Код подтверждения</label><FeaturedCard theme={theme}><input id="verification-token" type="text" autoComplete="one-time-code" required minLength={20} maxLength={128} value={verificationToken} onChange={e=>setVerificationToken(e.target.value)}/></FeaturedCard></div>
           </>}
           {error && <p role="alert" className="form-error">{error}</p>}
           <ChromeButton type="submit" disabled={busy} className="button button-accent full-width">{busy?'Подождите…':authMode==='register'?'Зарегистрироваться':authMode==='verify'?'Подтвердить и войти':'Войти'}</ChromeButton>
@@ -2129,16 +2184,17 @@ export default function Studio() {
         </form>
       </Modal>
       <Modal open={modal === 'payment'} onClose={()=>setModal(null)} title="Оплатить и начать генерацию">
-        <p>{tier.label} · {form.pages} стр. · {money(approval?.price_kopecks || 0)} ₽</p>
-        <p>Баланс: {money(account?.available || 0)} кредитов</p>
-        <p className="quiet-note">Тестовая оплата: деньги не списываются</p>
-        <div className="download-options">
-          <ChromeButton className={paymentMethod==='cash'?'selected':''} onClick={()=>setPaymentMethod('cash')}>Рубли — {money(approval?.price_kopecks || 0)} ₽</ChromeButton>
-          <ChromeButton className={paymentMethod==='bonus'?'selected':''} disabled={!!account?.debt || (account?.available || 0)<(approval?.price_kopecks || 0)} onClick={()=>setPaymentMethod('bonus')}>Кредиты — {money(approval?.price_kopecks || 0)}</ChromeButton>
-        </div>
-        {(account?.available || 0)<(approval?.price_kopecks || 0) && <p>Не хватает {money((approval?.price_kopecks || 0)-(account?.available || 0))} кредитов</p>}
+        <div className="payment-summary"><span className="aside-mark"><FileText size={24}/></span><div><strong>{tier.label}</strong><p>{form.pages} страниц · Word и PDF</p></div><b>{money(approval?.price_kopecks || 0)} ₽</b></div>
+        <p className="payment-test"><Check size={17}/> Тестовая оплата: деньги не списываются</p>
+        <fieldset className="payment-methods"><legend>Способ оплаты</legend>
+          <ChromeButton type="button" aria-pressed={paymentMethod==='cash'} className={paymentMethod==='cash'?'selected':''} disabled={busy} onClick={()=>setPaymentMethod('cash')}><CreditCard size={23}/><strong>Рубли</strong><b>{money(approval?.price_kopecks || 0)} ₽</b><small>Без ввода банковской карты</small></ChromeButton>
+          <ChromeButton type="button" aria-pressed={paymentMethod==='bonus'} className={paymentMethod==='bonus'?'selected':''} disabled={busy || !!account?.debt || (account?.available || 0)<(approval?.price_kopecks || 0)} onClick={()=>setPaymentMethod('bonus')}><Gift size={23}/><strong>Кредиты</strong><b>{money(approval?.price_kopecks || 0)}</b><small>Доступно: {money(account?.available || 0)}</small></ChromeButton>
+        </fieldset>
+        {!!account?.debt ? <p className="quiet-note">Оплата кредитами недоступна: есть бонусный долг.</p> : (account?.available || 0)<(approval?.price_kopecks || 0) && <p className="quiet-note">Для оплаты кредитами не хватает {money((approval?.price_kopecks || 0)-(account?.available || 0))}. Можно выбрать рубли.</p>}
+        <div className="payment-total"><span>Итого</span><strong>{money(approval?.price_kopecks || 0)} {paymentMethod==='cash'?'₽':'кредитов'}</strong></div>
+        <p className="quiet-note">После подтверждения начнётся генерация по вашему плану. Готовые файлы доступны для скачивания 24 часа.</p>
         {error && <p role="alert" className="form-error">{error}</p>}
-        <ChromeButton className="button button-accent full-width" disabled={busy} onClick={pay}>{busy?'Запускаем…':'Подтвердить и начать'}</ChromeButton>
+        <ChromeButton className="button button-accent full-width" disabled={busy} onClick={pay}>{busy?'Запускаем…':paymentMethod==='cash'?'Оплатить тестово и начать':'Списать кредиты и начать'}<ArrowRight size={17}/></ChromeButton>
       </Modal>
       <Modal
         open={modal === "regenerate"}

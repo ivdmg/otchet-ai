@@ -12,7 +12,21 @@ class Credentials(Input):
     password: str = Field(min_length=12, max_length=128)
 
 
+class ProfileInput(Input):
+    name: str = Field(default="", max_length=80)
+    title_defaults: dict[str, str] = Field(default_factory=dict, max_length=12)
+
+    @field_validator("title_defaults")
+    @classmethod
+    def validate_defaults(cls, value):
+        allowed = {"university", "faculty", "department", "specialty", "city", "course", "group", "studentName", "supervisor"}
+        if set(value) - allowed or any(len(v) > 300 for v in value.values()):
+            raise ValueError("invalid_title_defaults")
+        return value
+
+
 class Register(Credentials):
+    name: str = Field(default="", max_length=80)
     referral_code: str | None = Field(None, max_length=64)
 
 

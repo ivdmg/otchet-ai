@@ -51,57 +51,11 @@ interface UserState {
 
 export const useUserStore = create<UserState>((set, get) => ({
   user: {
-    id: "usr_7890",
-    name: "Иван Иванов",
-    email: "ivan.student@vuz.ru",
-    credits: 25,
-    referralCode: "GOST-IVAN77",
-    referralClicks: 142,
-    referralSignups: 18,
-    referralWorksGenerated: 12,
-    referralEarnedCredits: 60,
-    referrals: [
-      {
-        id: "ref_1",
-        date: "23 окт 2026",
-        friendName: "Дмитрий С.",
-        docTitle: "Курсовая по банковскому праву",
-        rewardCredits: 5,
-        status: "completed",
-      },
-      {
-        id: "ref_2",
-        date: "20 окт 2026",
-        friendName: "Алина М.",
-        docTitle: "ВКР по маркетингу в ритейле",
-        rewardCredits: 10,
-        status: "completed",
-      },
-      {
-        id: "ref_3",
-        date: "17 окт 2026",
-        friendName: "Сергей К.",
-        docTitle: "Реферат по криптографии",
-        rewardCredits: 5,
-        status: "completed",
-      },
-    ],
-    linkedAccounts: {
-      yandex: true,
-      google: true,
-      telegram: false,
-    },
-    titleDefaults: {
-      university: "Московский государственный университет им. М.В. Ломоносова",
-      faculty: "Факультет вычислительной математики и кибернетики",
-      department: "Кафедра системного анализа",
-      specialty: "09.03.04 Программная инженерия",
-      city: "Москва",
-      course: "3 курс",
-      group: "ПИ-301",
-      studentName: "Иванов Иван Иванович",
-      supervisor: "доцент, к.т.н. Смирнов А. В.",
-    },
+    id: "", name: "", email: "", credits: 0, referralCode: "",
+    referralClicks: 0, referralSignups: 0, referralWorksGenerated: 0,
+    referralEarnedCredits: 0, referrals: [],
+    linkedAccounts: { yandex: false, google: false, telegram: false },
+    titleDefaults: { university: "", faculty: "", department: "", specialty: "", city: "", course: "", group: "", studentName: "", supervisor: "" },
   },
 
   deductCredits: (amount: number) => {

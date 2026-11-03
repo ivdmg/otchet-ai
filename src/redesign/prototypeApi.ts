@@ -90,7 +90,7 @@ export class PrototypeApi {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      if (response.status === 401 && path != "/auth/login") this.expired();
+      if (response.status === 401 && path != "/auth/login" && path != "/auth/me") this.expired();
       throw new ApiError(
         response.status,
         typeof data.detail === "string" ? data.detail : "validation_error",
@@ -158,12 +158,14 @@ export function errorText(e: unknown) {
     const map: Record<string, string> = {
       groq_key_missing:
         "На backend не настроен GROQ_API_KEY. Настоящий AI-план пока недоступен.",
+      openrouter_key_missing: "На сервере не настроен ключ OpenRouter. AI-генерация пока недоступна.",
+      ai_credits_required: "На балансе AI-провайдера недостаточно средств. Генерация остановлена.",
       yukassa_test_credentials_required:
         "На backend не настроены тестовые реквизиты ЮKassa.",
       closed_prototype:
         "Локальный сервер не прошёл private gate. Проверьте существующий .env и перезапустите npm run dev.",
-      ai_access_denied: "Groq отклонил доступ к сервису (HTTP 403). Проверьте сетевой доступ; заказ не завершён.",
-      ai_auth: "Groq не принял авторизацию. Проверьте серверную настройку ключа.",
+      ai_access_denied: "AI-провайдер отклонил доступ (HTTP 403). Проверьте разрешения модели и сетевой доступ; заказ не завершён.",
+      ai_auth: "AI-провайдер не принял авторизацию. Проверьте серверную настройку ключа.",
       stale_approval: "План изменился. Закройте окно и подтвердите актуальный план.",
       plan_hourly_limit: "Доступно до трёх AI-планов в час. Ручное редактирование бесплатно.",
       plan_daily_limit: "Дневной лимит пяти AI-планов исчерпан. Ручное редактирование бесплатно.",

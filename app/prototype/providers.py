@@ -25,19 +25,32 @@ def retry_after(value):
 
 
 class Groq:
+    endpoint = 'https://api.groq.com/openai/v1/chat/completions'
+
+    @property
+    def api_key(self):
+        return cfg.GROQ_API_KEY
+
+    @property
+    def key_error(self):
+        return 'groq_key_missing'
+
     def __init__(self, transport=None, model=None):
         self.transport = transport
         self.model = model or cfg.GROQ_MODEL
 
     def generate(self, topic, headings, step, settings=None, preflight=False):
         settings = settings or {}
-        if not cfg.GROQ_API_KEY:
-            raise ProviderError('groq_key_missing')
+        if not self.api_key:
+            raise ProviderError(self.key_error)
         # No email, name, account, title-page or payment fields cross this boundary.
         if step == 'plan':
-            instruction = ('Составь содержательный план учебной работы по настройкам пользователя. '
+            instruction = ('Составь содержательный академический план строго по теме из поля topic. Поля settings задают объём, предмет и требования, а не заменяют тему исследования. Раскрой ключевые понятия темы и их анализ; не подменяй исследование инструкцией по настройке аккаунта. '
                            'Верни JSON {"chapters":[{"title":"Название главы","sections":["Параграф"]}]}. '
-                           f'Ровно {settings.get("chapters",2)} главы, по 1–2 параграфа. Введение, заключение и источники не включай.')
+                           f'Ровно {settings.get("chapters",2)} главы, по 1–2 параграфа. '
+                           'Заголовок каждой главы и каждого параграфа — короткая уникальная строка от 3 до 120 символов. '
+                           'Не добавляй описания, пояснения, перечни примеров, URL или нумерацию внутри заголовков. '
+                           'Введение, заключение и источники не включай.')
             output = 1200
         else:
             instruction = ('Напиши связный содержательный раздел на русском без Markdown. '
@@ -57,16 +70,18 @@ class Groq:
         if preflight: return None,0
         try:
             with httpx.Client(timeout=httpx.Timeout(55, connect=10), transport=self.transport) as c:
-                r = c.post('https://api.groq.com/openai/v1/chat/completions',
-                           headers={'Authorization': 'Bearer '+cfg.GROQ_API_KEY},
-                           json={'model': self.model, 'temperature': 0.2, 'max_completion_tokens': output,
+                r = c.post(self.endpoint,
+                           headers={'Authorization': 'Bearer '+self.api_key},
+                           json={'model': self.model, 'temperature': 0.2, self.output_parameter: output,
                                  'response_format': {'type':'json_object'},
-                                 **({'reasoning_effort':'low'} if 'gpt-oss' in self.model else {}),
+                                 **self.reasoning_parameters(),
                                  'messages':messages})
         except httpx.RequestError:
             raise ProviderError('ai_timeout', True, 30) from None
         if r.status_code == 429:
             raise ProviderError('ai_rate_limit', True, retry_after(r.headers.get('retry-after')))
+        if r.status_code == 402:
+            raise ProviderError('ai_credits_required')
         if r.status_code >= 500:
             raise ProviderError('ai_unavailable', True, 30)
         if r.status_code != 200:
@@ -82,6 +97,39 @@ class Groq:
             return result, usage
         except (KeyError, ValueError, TypeError, IndexError):
             raise ProviderError('ai_invalid_response', True, 15) from None
+
+    output_parameter = 'max_completion_tokens'
+
+    def reasoning_parameters(self):
+        return {'reasoning_effort':'low'} if 'gpt-oss' in self.model else {}
+
+
+class OpenRouter(Groq):
+    endpoint = 'https://openrouter.ai/api/v1/chat/completions'
+    output_parameter = 'max_tokens'
+
+    def __init__(self, transport=None, model=None):
+        super().__init__(transport, model or cfg.OPENROUTER_MODEL)
+
+    @property
+    def api_key(self):
+        return cfg.OPENROUTER_API_KEY
+
+    @property
+    def key_error(self):
+        return 'openrouter_key_missing'
+
+    def reasoning_parameters(self):
+        effort = cfg.OPENROUTER_REASONING_EFFORT or ('low' if 'gpt-oss' in self.model else '')
+        return {'reasoning':{'effort':effort}} if effort else {}
+
+
+def ai_provider(model=None):
+    # Persist the provider with each job; a config switch cannot reroute old jobs.
+    model = model or cfg.ai_model
+    if model.startswith('openrouter:'):
+        return OpenRouter(model=model.removeprefix('openrouter:'))
+    return Groq(model=model)
 
 
 def amount_string(cents):

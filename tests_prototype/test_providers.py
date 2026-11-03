@@ -4,6 +4,44 @@ import pytest
 from app.prototype.providers import Groq, YooKassa, ProviderError, retry_after
 
 
+def test_openrouter_wire_and_frozen_provider(monkeypatch):
+    from app.prototype.config import cfg
+    from app.prototype.providers import OpenRouter, ai_provider
+    monkeypatch.setattr(cfg, 'OPENROUTER_API_KEY', 'explicit-test-key')
+    monkeypatch.setattr(cfg, 'OPENROUTER_REASONING_EFFORT', '')
+    monkeypatch.setattr(cfg, 'AI_PROVIDER', 'openrouter')
+    monkeypatch.setattr(cfg, 'OPENROUTER_MODEL', 'openai/gpt-oss-120b')
+    assert isinstance(ai_provider(), OpenRouter)
+    assert isinstance(ai_provider('openai/gpt-oss-120b'), Groq)
+    assert not isinstance(ai_provider('openai/gpt-oss-120b'), OpenRouter)
+    frozen = cfg.ai_model
+    monkeypatch.setattr(cfg, 'AI_PROVIDER', 'groq')
+    assert isinstance(ai_provider(frozen), OpenRouter)
+    def respond(request):
+        assert request.url == 'https://openrouter.ai/api/v1/chat/completions'
+        assert request.headers['authorization'] == 'Bearer explicit-test-key'
+        body = json.loads(request.content)
+        assert body['model'] == 'openai/gpt-oss-120b'
+        assert 'max_tokens' in body and 'max_completion_tokens' not in body
+        assert body['reasoning'] == {'effort':'low'}
+        return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':'{"paragraphs":["text"]}'}}],'usage':{'total_tokens':200}})
+    assert OpenRouter(httpx.MockTransport(respond), model='openai/gpt-oss-120b').generate('Тема', [], 'Введение')[1] == 200
+    monkeypatch.setattr(cfg, 'OPENROUTER_REASONING_EFFORT', 'none')
+    assert OpenRouter(model='nvidia/nemotron-3-ultra-550b-a55b:free').reasoning_parameters() == {'reasoning':{'effort':'none'}}
+
+
+def test_openrouter_missing_key_and_no_paid_fallback(monkeypatch):
+    from app.prototype.config import cfg
+    from app.prototype.providers import OpenRouter
+    monkeypatch.setattr(cfg, 'OPENROUTER_API_KEY', '')
+    with pytest.raises(ProviderError, match='openrouter_key_missing'):
+        OpenRouter().generate('Тема', [], 'plan')
+    monkeypatch.setattr(cfg, 'OPENROUTER_API_KEY', 'explicit-test-key')
+    with pytest.raises(ProviderError, match='ai_credits_required') as e:
+        OpenRouter(httpx.MockTransport(lambda r: httpx.Response(402))).generate('Тема', [], 'plan')
+    assert not e.value.retryable
+
+
 def test_groq_wire_and_json_no_personal_fields():
     def respond(request):
         assert request.url == 'https://api.groq.com/openai/v1/chat/completions'

@@ -897,7 +897,19 @@ summary::-webkit-details-marker {
 }
 .sidebar-user > span:nth-child(2) {
   flex: 1;
+  min-width: 0;
 }
+.sidebar-user b,
+.sidebar-user small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user > svg,
+.sidebar-user .avatar { flex-shrink: 0; }
+.sidebar-guest { display: flex; gap: 10px; align-items: center; padding: 18px 2px 0; color: var(--text-muted); }
+.sidebar-guest > svg { flex-shrink: 0; }
+.sidebar-guest b { display: block; font-size: 12px; font-weight: 500; color: var(--text); }
+.sidebar-guest small { display: block; margin-top: 4px; font-size: 10px; line-height: 1.5; }
+.sidebar-guest + .sidebar-user { padding-top: 12px; }
+.profile-tabs .profile-logout { margin-top: 20px; border-top: 1px solid var(--line); border-radius: 0; gap: 8px; justify-content: flex-start; }
+.logout-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 .sidebar-user b {
   display: block;
   font-size: 11px;
@@ -1955,6 +1967,8 @@ textarea::placeholder {
 .work-status.draft {
   color: var(--text-muted);
 }
+.work-status.failed > span { background: var(--accent); }
+.work-status.processing > span { background: var(--text-muted); }
 .work-status.draft > span {
   background: #9e9586;
 }
@@ -3393,3 +3407,39 @@ textarea::placeholder {
     width: 30px;
   }
 }
+/* Account access, authentication and checkout share the Studio theme tokens. */
+.access-gate { max-width: 680px; margin: 56px auto; padding: clamp(24px, 5vw, 56px); text-align: center; backdrop-filter: blur(24px); }
+.access-gate .aside-mark { margin: 0 auto 24px; }
+.access-gate p { line-height: 1.7; margin: 20px auto 28px; max-width: 480px; }
+.gate-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.auth-form { display: grid; gap: 20px; }
+.auth-form .field-group { margin: 0; display: grid; gap: 8px; }
+.auth-form .featured-card-frame { width: 100%; min-width: 0; border-radius: 12px; }
+.auth-form input { width: 100%; min-height: 48px; border-radius: 12px; }
+.auth-form .modal-description { margin: 0; line-height: 1.6; }
+.auth-form small { line-height: 1.5; }
+.payment-summary { display: flex; gap: 16px; align-items: center; padding: 20px 0; }
+.payment-summary > div { flex: 1; }
+.payment-summary p { margin: 6px 0 0; font-size: 13px; }
+.payment-summary > b { font-size: 24px; white-space: nowrap; }
+.payment-test { display: flex; align-items: center; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; line-height: 1.5; }
+.payment-methods { border: 0; padding: 0; margin: 24px 0 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 0; }
+.payment-methods legend { margin-bottom: 14px; font-weight: 600; }
+.payment-methods button { padding: 20px; display: grid; grid-template-columns: 24px 1fr; gap: 12px; text-align: left; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: inherit; }
+.payment-methods button b, .payment-methods button small { grid-column: 1 / -1; }
+.payment-methods button b { font-size: 24px; }
+.payment-methods button small { font-size: 12px; line-height: 1.5; }
+.payment-methods button.selected { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+.payment-methods button:disabled { opacity: .55; cursor: not-allowed; }
+.payment-total { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; margin-top: 20px; border-top: 1px solid var(--line); }
+.payment-total strong { font-size: 24px; }
+.plan-wait { max-width: 900px; margin: auto; padding: 32px; text-align: center; }
+.plan-wait p { line-height: 1.6; max-width: 480px; margin: 16px auto 24px; }
+.plan-wait .ai-orb { margin: auto; }
+.plan-skeleton { display: grid; gap: 20px; text-align: left; }
+.plan-skeleton > div { padding: 24px; border: 1px solid var(--line); border-radius: 16px; }
+.plan-skeleton span { display: block; height: 12px; margin: 12px 0; width: 65%; border-radius: 6px; background: currentColor; opacity: .1; animation: plan-pulse 1.8s ease-in-out infinite alternate; }
+.plan-skeleton span:first-child { height: 18px; width: 85%; }
+@keyframes plan-pulse { to { opacity: .22; } }
+@media (prefers-reduced-motion: reduce) { .plan-skeleton span { animation: none; } }
+@media (max-width: 480px) { .payment-methods { grid-template-columns: 1fr; } .payment-summary { gap: 10px; } .payment-summary > b { font-size: 20px; } .plan-wait { padding: 20px; } }

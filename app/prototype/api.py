@@ -15,9 +15,9 @@ from .catalog import CATALOG, VERSION, budget
 from .db import counter, limit
 from .models import (Attribution, AuthToken, BonusAccount, BonusEntry, DB, Document,
                      Job, Order, Refund, Reward, Session, User, now)
-from .schemas import Buy, Credentials, Draft, EmailInput, Plan, Register, Reset, TokenInput
+from .schemas import Buy, Credentials, Draft, EmailInput, Plan, Register, Reset, TokenInput, ProfileInput
 from . import bonus, documents, payments
-from .providers import ProviderError, YooKassa, Groq
+from .providers import ProviderError, YooKassa, ai_provider
 
 
 app = FastAPI(title='AI GostDoc вЂ” closed personal sandbox',version='0.1.0',
@@ -75,7 +75,7 @@ def rate(db, request, kind, maximum=20):
 
 
 def profile(user):
-    return {'id':user.id,'email':user.email,'verified':user.verified,'referral_code':user.referral_code}
+    return {'id':user.id,'email':user.email,'verified':user.verified,'referral_code':user.referral_code, **(user.profile_data or {})}
 
 
 @app.post('/api/v1/auth/register',status_code=201)
@@ -91,7 +91,8 @@ def register(body: Register, request: Request, db=Depends(get_db)):
         inviter = db.scalar(select(User).where(User.referral_code == code,User.verified.is_(True)))
         if not inviter or inviter.email == email:
             raise HTTPException(422,'invalid_referral')
-    user = User(email=email,password=password_hash(body.password))
+    user = User(email=email,password=password_hash(body.password),profile_data={"name":body.name.strip()},
+                verified=cfg.MOCK_EMAIL and cfg.APP_ENV == "development")
     db.add(user)
     db.flush()
     db.add(BonusAccount(user_id=user.id))
@@ -137,6 +138,13 @@ def login(body: Credentials, request: Request, response: Response, db=Depends(ge
 @app.get('/api/v1/auth/me')
 def me(request: Request, user=Depends(current_user)):
     return {'user':profile(user),'csrf_token':request.state.session.csrf}
+
+
+@app.put('/api/v1/auth/profile')
+def update_profile(body: ProfileInput, user=Depends(current_user), db=Depends(get_db)):
+    user.profile_data = body.model_dump()
+    db.commit()
+    return {'user':profile(user)}
 
 
 @app.post('/api/v1/auth/logout')
@@ -185,6 +193,7 @@ def referral_cookie(code: str,request: Request,response: Response,db=Depends(get
 def catalog():
     return {'mode':'sandbox','version':VERSION,'types':CATALOG,'chapters':[2,3], 'retention_hours':24,
             'front_matter_included':True,'cashback_bps':cfg.CASHBACK_BPS,
+            'mock_email':cfg.MOCK_EMAIL and cfg.APP_ENV == 'development',
             'payment_mode':'mock' if cfg.MOCK_PAYMENTS else 'disabled'}
 
 
@@ -196,14 +205,14 @@ def quote(body: Draft):
 
 
 def reserve_budget(db,amount):
-    if not cfg.GROQ_API_KEY:
-        raise HTTPException(503,'groq_key_missing')
+    if not cfg.ai_key:
+        raise HTTPException(503,'openrouter_key_missing' if cfg.AI_PROVIDER == 'openrouter' else 'groq_key_missing')
     if not limit(db,f'admission:{now()//86400}',cfg.DAILY_TOKENS,amount):
         raise HTTPException(429,'daily_ai_budget_reserved')
 
 
 def job_view(job,doc):
-    return {'id':job.id,'document_id':job.document_id,'order_id':job.order_id,'kind':job.kind,'provider':'groq','model':job.model,
+    return {'id':job.id,'document_id':job.document_id,'order_id':job.order_id,'kind':job.kind,'provider':'openrouter' if job.model.startswith('openrouter:') else 'groq','model':job.model.removeprefix('openrouter:'),
             'status':job.state,**documents.progress(job,doc),'heartbeat':job.heartbeat,
             'retry_at':job.retry_at or None,'error':job.error,'attempts':job.attempts,
             'metrics':job.metrics,'tokens':{'reported':job.usage,'charged_conservative':job.charged,'budget':job.budget}}
@@ -344,7 +353,7 @@ def buy(id: str,body: Buy,user=Depends(current_user),db=Depends(get_db)):
     tokens = budget(doc.doc_type,settings.pages)
     # Pure local token preflight: reject oversized inputs before payment/reserve.
     for key,heading,_ in documents.pipeline(doc.approved_plan,doc.settings)[:-3]:
-        Groq().generate(doc.topic,doc.approved_plan['chapters'],heading,
+        ai_provider().generate(doc.topic,doc.approved_plan['chapters'],heading,
                         settings=documents.generation_settings(doc.settings,doc.approved_plan,key),preflight=True)
     reserve_budget(db,tokens)
     order = Order(document_id=id,user_id=user.id,method=body.method,amount=CATALOG[doc.doc_type]['price'],ai_budget=tokens)

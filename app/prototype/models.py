@@ -21,6 +21,7 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "gd_users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    profile_data: Mapped[dict] = mapped_column(JSON, default=dict)
     email: Mapped[str] = mapped_column(String(254), unique=True)
     password: Mapped[str] = mapped_column(Text)
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -74,7 +75,7 @@ class Order(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("gd_users.id"), index=True)
     method: Mapped[str] = mapped_column(String(8))
     ai_budget: Mapped[int] = mapped_column(Integer, default=lambda: cfg.JOB_BUDGET)
-    model: Mapped[str] = mapped_column(String(80), default=lambda: cfg.GROQ_MODEL)
+    model: Mapped[str] = mapped_column(String(80), default=lambda: cfg.ai_model)
     amount: Mapped[int] = mapped_column(Integer, default=30000)
     state: Mapped[str] = mapped_column(String(32), default="checking_payment")
     payment_id: Mapped[str | None] = mapped_column(String(64), unique=True)
@@ -92,7 +93,7 @@ class Job(Base):
     document_id: Mapped[str] = mapped_column(ForeignKey("gd_documents.id"), index=True)
     order_id: Mapped[str | None] = mapped_column(ForeignKey("gd_orders.id"), unique=True)
     kind: Mapped[str] = mapped_column(String(12))
-    model: Mapped[str] = mapped_column(String(80), default=lambda: cfg.GROQ_MODEL)
+    model: Mapped[str] = mapped_column(String(80), default=lambda: cfg.ai_model)
     state: Mapped[str] = mapped_column(String(24), default="queued")
     stage: Mapped[str] = mapped_column(String(80), default="queued")
     steps: Mapped[dict] = mapped_column(JSON, default=dict)

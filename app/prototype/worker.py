@@ -10,7 +10,7 @@ from sqlalchemy import or_, select, text
 from .config import cfg
 from .db import counter
 from .models import DB, Document, Job, Order, now, uid
-from .providers import Groq, ProviderError
+from .providers import ai_provider, ProviderError
 from .schemas import Plan
 from . import bonus, documents, payments
 
@@ -114,7 +114,7 @@ def run_one(provider=None):
             if key not in ('validation','docx','pdf'):
                 reserve_call(db,job)
             topic, plan = doc.topic, doc.approved_plan or {}
-            active_provider = provider or Groq(model=job.model)
+            active_provider = provider or ai_provider(model=job.model)
             steps = dict(job.steps)
             settings = dict(doc.settings)
         # No SQL transaction spans the AI request.

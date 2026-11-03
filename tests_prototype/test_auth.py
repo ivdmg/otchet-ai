@@ -67,3 +67,28 @@ def test_first_referral_cookie_and_draft_archive(client):
     assert client.delete('/api/v1/documents/'+id).status_code == 200
     assert client.post(f'/api/v1/documents/{id}/approve').status_code == 409
     assert client.get('/api/v1/documents/'+id).json()['state'] == 'archived'
+
+
+def test_profile_persists_and_is_scoped_to_session(client):
+    first = signup(client, 'profile-owner@example.org')
+    body = {'name':'Проверка профиля','title_defaults':{'city':'Астрахань','group':'ТЕСТ-1'}}
+    assert client.put('/api/v1/auth/profile',json=body,headers={'X-CSRF-Token':'wrong'}).status_code == 403
+    assert client.put('/api/v1/auth/profile',json=body).status_code == 200
+    assert client.get('/api/v1/auth/me').json()['user']['title_defaults'] == body['title_defaults']
+    assert client.put('/api/v1/auth/profile',json={'name':'x','title_defaults':{'unknown':'bad'}}).status_code == 422
+    signup(client, 'profile-other@example.org')
+    assert client.get('/api/v1/auth/me').json()['user'].get('name','') == ''
+    assert client.post('/api/v1/auth/logout').status_code == 200
+    assert client.get('/api/v1/auth/me').status_code == 401
+    r = client.post('/api/v1/auth/login',json={'email':first['email'],'password':PASSWORD})
+    assert r.status_code == 200
+    assert r.json()['user']['name'] == body['name']
+
+
+def test_mock_email_only_in_explicit_development_mode(client,monkeypatch):
+    monkeypatch.setattr(cfg,'MOCK_EMAIL',True)
+    assert client.post('/api/v1/auth/register',json={'email':'not-auto@example.org','password':PASSWORD}).json()['verified'] is False
+    monkeypatch.setattr(cfg,'APP_ENV','development')
+    r = client.post('/api/v1/auth/register',json={'email':'local-auto@example.org','password':PASSWORD,'name':'Локальный тест'})
+    assert r.status_code == 201 and r.json()['verified'] is True
+    assert client.post('/api/v1/auth/login',json={'email':'local-auto@example.org','password':PASSWORD}).status_code == 200

@@ -78,6 +78,8 @@ desktop.ini
 
 # Local private prototype state
 .local/
+.agents/
+docs/backend/evidence/
 !Tasks/
 !Tasks/**/*.md
 !docs/backend/*.md

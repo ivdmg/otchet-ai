@@ -320,6 +320,17 @@ html { scrollbar-gutter: stable; }
 .elastic-chrome-rim { position: absolute; left: -7px; top: -7px; width: calc(100% + 14px); height: calc(100% + 14px); max-width: none; overflow: visible; pointer-events: none; z-index: 3; }
 .sidebar > .sidebar-identity { height: 42px; margin: 0 0 24px; padding-right: 57px; }
 .sidebar-identity .sidebar-user { height: 42px; }
+.workspace .sidebar > .sidebar-account { display: flex; flex-direction: column; align-items: stretch; height: auto; padding-right: 0; gap: 12px; }
+.sidebar-account .sidebar-guest { min-height: 42px; padding: 0 52px 0 0; }
+.sidebar-account .sidebar-user { flex: none; min-width: 0; padding: 0; }
+.sidebar-account.is-signed-in .sidebar-user { padding-right: 48px; }
+.sidebar-account.is-guest .sidebar-user { padding: 10px; height: auto; min-height: 42px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper-200); gap: 8px; }
+.sidebar-account.is-guest .sidebar-user > svg:first-child { display: block; }
+.sidebar-account .sidebar-user b { max-width: none; font-size: 11px; }
+.sidebar-account .sidebar-user small { max-width: 100%; }
+@media (max-width: 700px) {
+ .sidebar-account .sidebar-guest, .sidebar-account.is-signed-in .sidebar-user { padding-right: 0; }
+}
 .sidebar > .new-work { width: 100%; margin-bottom: 30px; }
 .generator-input-effect, .generator-input-effect .featured-card-frame, .generator-input-effect .beam-surface { width: 100%; height: auto; min-width: 0; }
 .generator-input-effect textarea, .generator-input-effect input { position: relative; z-index: 1; display: block; width: 100%; background: var(--field-bg); border-radius: 7px; }
